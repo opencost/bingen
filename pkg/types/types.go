@@ -451,9 +451,7 @@ func (tc *typeCollector) toStructField(typeName string, typeField *AnnotatedFiel
 
 	// filter fields to ignore
 	names := []*ast.Ident{}
-	for _, i := range f.Names {
-		names = append(names, i)
-	}
+	names = append(names, f.Names...)
 	if len(names) == 0 {
 		return fields
 	}
@@ -670,15 +668,15 @@ func findFields(t *AnnotatedType) ([]*AnnotatedField, error) {
 // create field opts from the field annotation
 func toFieldOpts(a *meta.Annotation) (*FieldOpts, error) {
 	if a == nil {
-		return nil, fmt.Errorf("Nil Annotation")
+		return nil, fmt.Errorf("nil annotation")
 	}
 	if a.Command != meta.AnnotationField {
-		return nil, fmt.Errorf("Field annotation does not use 'field' command.")
+		return nil, fmt.Errorf("field annotation does not use 'field' command")
 	}
 
 	var version uint8
 	var defaultVal string
-	var ignore bool = false
+	ignore := false
 
 	for option := range a.Options {
 		if option == meta.AnnotationFieldIgnore {
@@ -688,7 +686,7 @@ func toFieldOpts(a *meta.Annotation) (*FieldOpts, error) {
 
 		strs := strings.Split(option, "=")
 		if len(strs) < 2 {
-			return nil, fmt.Errorf("No set(=) detected for option.")
+			return nil, fmt.Errorf("no set(=) detected for option")
 		}
 
 		prop := strings.TrimSpace(strs[0])
@@ -696,7 +694,7 @@ func toFieldOpts(a *meta.Annotation) (*FieldOpts, error) {
 		if prop == meta.AnnotationFieldVersion {
 			r, err := strconv.ParseUint(value, 10, 8)
 			if err != nil {
-				return nil, fmt.Errorf("Failed to parse uint8 version from: \"%s\"", value)
+				return nil, fmt.Errorf("failed to parse uint8 version from %q", value)
 			}
 			version = uint8(r)
 		}

@@ -90,7 +90,6 @@ type GeneratorContextFactory interface {
 
 // genContextFactory is the default implementation of GeneratorContextFactory
 type genContextFactory struct {
-	version       uint8
 	buffer        *bytes.Buffer
 	indentionSize int
 	errorHandler  func(Scope, string)
@@ -105,7 +104,7 @@ func (gcf *genContextFactory) NewContext(opts *types.GenerateTypeOpts) Generator
 	return &genContext{
 		b:          gcf.buffer,
 		i:          NewIndent(4),
-		vsc:        fmt.Sprintf("%sCodecVersion", strings.Title(opts.SetName)),
+		vsc:        fmt.Sprintf("%sCodecVersion", titleName(opts.SetName)),
 		opts:       opts,
 		loops:      vars.NewAlphaVarNames(vars.SkipAllBut(vars.I, vars.J)...),
 		maps:       vars.NewAlphaVarNames(vars.SkipAllBut(vars.Z, vars.V)...),

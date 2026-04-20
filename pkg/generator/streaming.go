@@ -210,7 +210,7 @@ func StreamReadAliasType(ctx GeneratorContext, t *types.AliasType) {
 	d := ctx.PushDebugRead("streamng-alias", t.Name())
 	defer d.End()
 
-	var aliasTypeName string = t.Name()
+	aliasTypeName := t.Name()
 	if t.IsPtr() {
 		aliasTypeName = "*" + t.Name()
 	}

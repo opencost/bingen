@@ -142,7 +142,7 @@ func (ac *annotationCollector) Collect(file *ast.File) error {
 						if ac.current.name == AnnotationDefaultSetName {
 							ac.current = nil
 						} else {
-							return fmt.Errorf("Found bingen set inside existing set scope.")
+							return fmt.Errorf("found bingen set inside existing set scope")
 						}
 					}
 					n, v, err := nameVersionFor(a)
@@ -187,7 +187,7 @@ func nameVersionFor(a *Annotation) (string, uint8, error) {
 	for option := range a.Options {
 		strs := strings.Split(option, "=")
 		if len(strs) < 2 {
-			return "", 0, fmt.Errorf("Parse Error. Failed to parse set option: %s", option)
+			return "", 0, fmt.Errorf("parse error: failed to parse set option: %s", option)
 		}
 
 		prop := strings.TrimSpace(strs[0])
@@ -198,14 +198,14 @@ func nameVersionFor(a *Annotation) (string, uint8, error) {
 		if prop == AnnotationSetVersion {
 			r, err := strconv.ParseUint(value, 10, 8)
 			if err != nil {
-				return "", 0, fmt.Errorf("Parse Error: Illegal version value for set: %s", err)
+				return "", 0, fmt.Errorf("parse error: illegal version value for set: %s", err)
 			}
 			version = uint8(r)
 		}
 	}
 
 	if name == "" {
-		return "", 0, fmt.Errorf("Failed to parse name from @bingen:set option. Use @bingen:set[name=] to apply a name.")
+		return "", 0, fmt.Errorf("failed to parse name from @bingen:set option; use @bingen:set[name=] to apply a name")
 	}
 	// version will just inherit the default if 0
 
@@ -218,6 +218,8 @@ func nameVersionFor(a *Annotation) (string, uint8, error) {
 
 // LoadAnnotations collects all annotations from the files within the package and returns
 // an slice of VersionSet implementations
+//
+//nolint:staticcheck // parser.ParseDir returns ast.Package map; migrating to go/types is a larger refactor.
 func LoadAnnotations(packages map[string]*ast.Package, defaultVersion uint8) (*BingenAnnotated, error) {
 	ac := newAnnotationsCollector()
 
@@ -239,9 +241,7 @@ func LoadAnnotations(packages map[string]*ast.Package, defaultVersion uint8) (*B
 	}
 
 	imports := []string{}
-	for _, im := range ac.imports {
-		imports = append(imports, im)
-	}
+	imports = append(imports, ac.imports...)
 
 	return &BingenAnnotated{
 		Imports:     imports,
