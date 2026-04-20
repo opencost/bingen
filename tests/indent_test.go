@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/kubecost/bingen/pkg/generator"
+	"github.com/opencost/bingen/pkg/generator"
 )
 
 func TestBasicIndent(t *testing.T) {

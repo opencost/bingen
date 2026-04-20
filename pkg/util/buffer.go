@@ -10,7 +10,7 @@ import (
 	"os"
 	"unsafe"
 
-	"github.com/kubecost/bingen/pkg/util/stringutil"
+	"github.com/opencost/bingen/pkg/util/stringutil"
 )
 
 var bytePool *bufferPool = newBufferPool()

@@ -1,4 +1,4 @@
-package kubecost
+package opencost
 
 import (
 	"fmt"

@@ -13,7 +13,6 @@ package aliases
 
 import (
 	"fmt"
-	util "github.com/kubecost/bingen/pkg/util"
 	"io"
 	"iter"
 	"os"
@@ -21,6 +20,8 @@ import (
 	"strings"
 	"sync"
 	"unsafe"
+
+	util "github.com/opencost/bingen/pkg/util"
 )
 
 const (

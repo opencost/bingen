@@ -9,10 +9,11 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-package kubecost
+package opencost
 
 import (
 	"fmt"
+	util "github.com/opencost/bingen/pkg/util"
 	"io"
 	"iter"
 	"os"
@@ -21,13 +22,11 @@ import (
 	"sync"
 	"time"
 	"unsafe"
-
-	util "github.com/kubecost/bingen/pkg/util"
 )
 
 const (
 	// GeneratorPackageName is the package the generator is targetting
-	GeneratorPackageName string = "kubecost"
+	GeneratorPackageName string = "opencost"
 )
 
 // BinaryTags represent the formatting tag used for specific optimization features

@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/kubecost/bingen/pkg/meta"
+	"github.com/opencost/bingen/pkg/meta"
 )
 
 //--------------------------------------------------------------------------

@@ -9,8 +9,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/kubecost/bingen/pkg/generator"
-	"github.com/kubecost/bingen/pkg/types"
+	"github.com/opencost/bingen/pkg/generator"
+	"github.com/opencost/bingen/pkg/types"
 )
 
 var (
@@ -54,7 +54,7 @@ func getTestDir() string {
 
 const (
 	V          uint8  = uint8(16)
-	BinGenUtil string = "github.com/kubecost/bingen/pkg/util"
+	BinGenUtil string = "github.com/opencost/bingen/pkg/util"
 )
 
 func fileExists(file string) bool {
@@ -114,10 +114,10 @@ func TestGenerateContainerBinCodecs(t *testing.T) {
 	}
 }
 
-func TestGenerateKubecostBinCodecs(t *testing.T) {
+func TestGenerateOpencostBinCodecs(t *testing.T) {
 	td := getTestDir()
 
-	err := runGenerator(filepath.Join(td, "kubecost"), "kubecost")
+	err := runGenerator(filepath.Join(td, "opencost"), "opencost")
 	if err != nil {
 		t.Errorf("\n%s", err)
 	}
@@ -135,19 +135,19 @@ func TestGenerateFailingBinCodecs(t *testing.T) {
 }
 
 func TestImportFromPath(t *testing.T) {
-	const FullPath = "github.com/kubecost/kubecost-cost-model/pkg/kubecost"
+	const FullPath = "github.com/opencost/opencost-special-path/pkg/opencost"
 	ip := types.ImportFromPath(FullPath)
-	if ip.Name != "kubecost" {
-		t.Errorf("Expected kubecost, got %s", ip.Name)
+	if ip.Name != "opencost" {
+		t.Errorf("Expected opencost, got %s", ip.Name)
 	}
 	if ip.Path != FullPath {
 		t.Errorf("Expected %s, got %s", FullPath, ip.Path)
 	}
 
-	const ShortPath = "kubecost"
+	const ShortPath = "opencost"
 	ip = types.ImportFromPath(ShortPath)
-	if ip.Name != "kubecost" {
-		t.Errorf("Expected kubecost, got %s", ip.Name)
+	if ip.Name != "opencost" {
+		t.Errorf("Expected opencost, got %s", ip.Name)
 	}
 	if ip.Path != ShortPath {
 		t.Errorf("Expected %s, got %s", ShortPath, ip.Path)

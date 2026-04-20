@@ -8,15 +8,15 @@ import (
 	"path"
 	"path/filepath"
 
-	"github.com/kubecost/bingen/pkg/generator"
-	"github.com/kubecost/bingen/pkg/types"
+	"github.com/opencost/bingen/pkg/generator"
+	"github.com/opencost/bingen/pkg/types"
 )
 
-const DefaultBufferPackage string = "github.com/kubecost/bingen/pkg/util"
+const DefaultBufferPackage string = "github.com/opencost/bingen/pkg/util"
 
 var (
 	packageName = flag.String("package", "", "package name to generate binary codecs for")
-	buffer      = flag.String("buffer", "github.com/kubecost/bingen/pkg/util", "qualified package for the Buffer type")
+	buffer      = flag.String("buffer", "github.com/opencost/bingen/pkg/util", "qualified package for the Buffer type")
 	version     = flag.Uint("version", 1, "the versioning to use for the binary generator")
 	//output      = flag.String("output", "", "output file name; default srcdir/<pkg>_codecs.go")
 )

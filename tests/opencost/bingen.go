@@ -1,4 +1,4 @@
-package kubecost
+package opencost
 
 // Default Version Set (uses -version flag passed) includes shared resources
 // @bingen:generate:Window
@@ -37,4 +37,4 @@ package kubecost
 // @bingen:generate:PVAllocation
 // @bingen:end
 
-//go:generate bingen -package=kubecost -version=16 -buffer=github.com/kubecost/cost-model/pkg/util
+//go:generate bingen -package=opencost -version=16 -buffer=github.com/opencost/bingen/pkg/util

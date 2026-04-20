@@ -3,8 +3,8 @@ package generator
 import (
 	"slices"
 
-	"github.com/kubecost/bingen/pkg/generator/vars"
-	"github.com/kubecost/bingen/pkg/types"
+	"github.com/opencost/bingen/pkg/generator/vars"
+	"github.com/opencost/bingen/pkg/types"
 )
 
 func GetStreamableTypes(ts []types.GenType) []*types.StructType {

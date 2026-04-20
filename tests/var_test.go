@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kubecost/bingen/pkg/generator/vars"
+	"github.com/opencost/bingen/pkg/generator/vars"
 )
 
 func checkVarNames(t *testing.T, current string, varName ...string) bool {
@@ -18,7 +18,7 @@ func checkVarNames(t *testing.T, current string, varName ...string) bool {
 
 	r := b.String()
 	if r != "" {
-		t.Errorf(r)
+		t.Error(r)
 		return false
 	}
 

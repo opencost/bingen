@@ -1,3 +1,3 @@
-module github.com/kubecost/bingen
+module github.com/opencost/bingen
 
-go 1.23
+go 1.25

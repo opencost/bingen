@@ -8,9 +8,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/kubecost/bingen/pkg/generator/vars"
-	"github.com/kubecost/bingen/pkg/meta"
-	"github.com/kubecost/bingen/pkg/types"
+	"github.com/opencost/bingen/pkg/generator/vars"
+	"github.com/opencost/bingen/pkg/meta"
+	"github.com/opencost/bingen/pkg/types"
 )
 
 // default type format mapping with specific casts
