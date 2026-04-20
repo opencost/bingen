@@ -15,8 +15,8 @@ import (
 
 var bytePool *bufferPool = newBufferPool()
 
-// NonPrimitiveTypeError represents an error where the user provided a non-primitive data type for reading/writing
-var NonPrimitiveTypeError error = errors.New("type provided to read/write does not fit inside 8 bytes")
+// ErrNonPrimitiveType represents an error where a non-primitive data type was provided for reading/writing.
+var ErrNonPrimitiveType error = errors.New("type provided to read/write does not fit inside 8 bytes")
 
 // Buffer is a utility type which implements a very basic binary protocol for
 // writing core go types.
@@ -135,19 +135,25 @@ func (b *Buffer) WriteUInt16(i uint16) {
 // WriteUInt32 writes a uint32 value to the buffer.
 func (b *Buffer) WriteUInt32(i uint32) {
 	b.checkRO()
-	writeUint32(b.bw, i)
+	if err := writeUint32(b.bw, i); err != nil {
+		panic(err)
+	}
 }
 
 // WriteUInt64 writes a uint64 value to the buffer.
 func (b *Buffer) WriteUInt64(i uint64) {
 	b.checkRO()
-	writeUint64(b.bw, i)
+	if err := writeUint64(b.bw, i); err != nil {
+		panic(err)
+	}
 }
 
 // WriteFloat32 writes a float32 value to the buffer.
 func (b *Buffer) WriteFloat32(i float32) {
 	b.checkRO()
-	writeFloat32(b.bw, i)
+	if err := writeFloat32(b.bw, i); err != nil {
+		panic(err)
+	}
 }
 
 // WriteFloat64 writes a float64 value to the buffer.
