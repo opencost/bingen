@@ -201,9 +201,27 @@ func TestIsPowerOfTwo(t *testing.T) {
 		}
 	}
 
-	for _, v := range []int{5, 17, 19, 31, 55} {
+	for _, v := range []int{0, 5, 17, 19, 31, 55, -1, -2} {
 		if isPowerOfTwo(v) {
 			t.Fatalf("Unexpected isPowerOfTwo: %d", v)
+		}
+	}
+}
+
+// TestNewBufferPoolSlotsAllocateCorrectSize verifies that the sync.Pool.New
+// closures installed by newBufferPool each return buffers of the size matching
+// their pool slot. If the loop variable were captured incorrectly, every
+// pool's New would produce the same final size.
+func TestNewBufferPoolSlotsAllocateCorrectSize(t *testing.T) {
+	bp := newBufferPool()
+	for i := 0; i < 17; i++ {
+		want := 1 << i
+		got := bp.pools[i].New().([]byte)
+		if len(got) != want {
+			t.Errorf("pools[%d].New() returned len=%d, want %d", i, len(got), want)
+		}
+		if cap(got) != want {
+			t.Errorf("pools[%d].New() returned cap=%d, want %d", i, cap(got), want)
 		}
 	}
 }

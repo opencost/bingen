@@ -188,9 +188,15 @@ func (vn *alphaVarNames) currentRune() rune {
 	return rune(A + vn.inc)
 }
 
-// skip any ignored runes
+// skip any ignored runes. Panics if the skip set contains every alpha rune,
+// which would otherwise cause an infinite loop.
 func (vn *alphaVarNames) skip() {
+	checked := 0
 	for vn.skipSet.Has(rune(A + vn.inc)) {
+		checked++
+		if checked >= 26 {
+			panic("vars: no available variable names; skip set contains all letters")
+		}
 		vn.increment()
 	}
 }

@@ -38,9 +38,9 @@ func (sb *stringBank) LoadOrStoreFunc(key string, f func() string) (string, bool
 		return v, ok
 	}
 
-	// create the key and value using the func (the key could be deallocated later)
+	// create the value using the func while storing it under the provided key
 	value := f()
-	sb.m[value] = value
+	sb.m[key] = value
 	sb.lock.Unlock()
 	return value, false
 }

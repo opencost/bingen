@@ -83,6 +83,10 @@ func main() {
 		os.Remove(codecPath)
 	}
 
+	if *version > 255 {
+		fmt.Fprintf(os.Stderr, "invalid -version value %d: must be between 0 and 255\n", *version)
+		os.Exit(2)
+	}
 	defaultVersion := uint8(*version)
 
 	tc, err := types.LoadTypes(dir, *packageName, defaultVersion)

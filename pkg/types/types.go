@@ -598,8 +598,6 @@ func findTypes(file *ast.File, annotations []meta.VersionSet, defaultVersion uin
 			return true
 		}
 
-		fmt.Println("Found Type: ", t.Name.String())
-
 		// Set the default version if the annotation set has a 0 version
 		setVersion := annotationSet.Version()
 		if setVersion == 0 {
@@ -722,7 +720,7 @@ func LoadTypes(dir string, pkg string, defaultVersion uint8) (TypeCollection, er
 	fset := token.NewFileSet()
 	packages, err := parser.ParseDir(fset, dir, nil, parser.ParseComments)
 	if err != nil {
-		panic(fmt.Sprintf("Failed to parse: %s", err))
+		return nil, fmt.Errorf("failed to parse: %w", err)
 	}
 
 	annotations, err := meta.LoadAnnotations(packages, defaultVersion)
@@ -732,11 +730,8 @@ func LoadTypes(dir string, pkg string, defaultVersion uint8) (TypeCollection, er
 
 	typeCollector := NewTypeCollection(annotations)
 
-	for k, v := range packages {
-		fmt.Printf("Package: %s\n", k)
-		for kk, file := range v.Files {
-			fmt.Printf("File: %s\n", kk)
-
+	for _, v := range packages {
+		for _, file := range v.Files {
 			types := findTypes(file, annotations.VersionSets, defaultVersion)
 			for _, at := range types {
 				t := at.T

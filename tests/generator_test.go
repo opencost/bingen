@@ -5,7 +5,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"strings"
 	"sync"
 	"testing"
 
@@ -32,19 +31,25 @@ func getTestDir() string {
 			return
 		}
 
-		dirs := strings.Split(wd, "/")
-		if dirs[len(dirs)-1] == "tests" {
+		if filepath.Base(wd) == "tests" {
 			testDir = wd
 			return
 		}
 
-		for i := len(dirs); i >= 0; i-- {
-
-			tDir := filepath.Join(filepath.Join(dirs[:i]...), "tests")
-			if dirExists(tDir) {
-				testDir = tDir
+		// Walk up parent directories looking for a "tests" sibling directory.
+		current := wd
+		for {
+			candidate := filepath.Join(current, "tests")
+			if dirExists(candidate) {
+				testDir = candidate
 				return
 			}
+
+			parent := filepath.Dir(current)
+			if parent == current {
+				break
+			}
+			current = parent
 		}
 
 		testDir = ""

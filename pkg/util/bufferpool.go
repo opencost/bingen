@@ -15,9 +15,11 @@ func newBufferPool() *bufferPool {
 	bp := new(bufferPool)
 
 	for i := 0; i < 17; i++ {
-		length := 1 << i
+		// Bind the size to a new local variable so each pool's New closure
+		// captures its own distinct length rather than sharing the loop variable.
+		size := 1 << i
 		bp.pools[i].New = func() any {
-			return make([]byte, length)
+			return make([]byte, size)
 		}
 	}
 	return bp
@@ -39,7 +41,7 @@ func putIndex(capacity int) int {
 }
 
 func isPowerOfTwo(capacity int) bool {
-	return capacity&(capacity-1) == 0
+	return capacity > 0 && capacity&(capacity-1) == 0
 }
 
 func (bp *bufferPool) Get(length int) []byte {

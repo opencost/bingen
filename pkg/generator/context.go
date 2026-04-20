@@ -104,7 +104,7 @@ func (gcf *genContextFactory) NewContext(opts *types.GenerateTypeOpts) Generator
 
 	return &genContext{
 		b:          gcf.buffer,
-		i:          NewIndent(4),
+		i:          NewIndent(gcf.indentionSize),
 		vsc:        fmt.Sprintf("%sCodecVersion", strings.Title(opts.SetName)),
 		opts:       opts,
 		loops:      vars.NewAlphaVarNames(vars.SkipAllBut(vars.I, vars.J)...),
