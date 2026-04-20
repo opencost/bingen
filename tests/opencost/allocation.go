@@ -96,7 +96,8 @@ type Allocation struct {
 // A2 Using 2 CPU      ----      -----      ----
 // A3 Using 1 CPU         ---       --
 // _______________________________________________
-//                   Time ---->
+//
+//	Time ---->
 //
 // The logical maximum CPU usage is 5, but this cannot be calculated iteratively,
 // which is how we calculate aggregations and accumulations of Allocations currently.
