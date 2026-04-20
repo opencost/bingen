@@ -1,0 +1,129 @@
+name: Update Go Version
+
+on:
+  schedule:
+    - cron: "0 14 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check-and-update-go:
+    name: Check and update Go version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6.0.2
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: stable
+
+      - name: Check for existing open PRs
+        id: check-existing-prs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          EXISTING_PRS=$(gh pr list --label "go-version-update" --state open --json number,title,url)
+          if [ "$(echo "$EXISTING_PRS" | jq 'length')" -gt 0 ]; then
+            echo "Found existing open PR(s) with go-version-update label:"
+            echo "$EXISTING_PRS" | jq -r '.[] | "  - #\(.number): \(.title) (\(.url))"'
+            echo "skip_update=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No existing open PRs found, proceeding with update check"
+            echo "skip_update=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Get current Go version from go.mod
+        id: current-version
+        if: steps.check-existing-prs.outputs.skip_update == 'false'
+        run: |
+          CURRENT_VERSION=$(awk '/^go / { print $2 }' go.mod)
+          echo "current_version=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
+          echo "Current Go version: $CURRENT_VERSION"
+
+      - name: Get latest stable Go version
+        id: latest-version
+        if: steps.check-existing-prs.outputs.skip_update == 'false'
+        run: |
+          LATEST_VERSION=$(curl -sL https://go.dev/dl/?mode=json | jq -r '[.[] | select(.stable == true)][0].version')
+          echo "latest_version=$LATEST_VERSION" >> "$GITHUB_OUTPUT"
+          echo "Latest Go version: $LATEST_VERSION"
+
+      - name: Compare versions
+        id: version-check
+        if: steps.check-existing-prs.outputs.skip_update == 'false'
+        run: |
+          CURRENT_VERSION="${{ steps.current-version.outputs.current_version }}"
+          LATEST_VERSION="${{ steps.latest-version.outputs.latest_version }}"
+
+          CURRENT_NUM="$(echo "$CURRENT_VERSION" | sed 's/^go//')"
+          LATEST_NUM="$(echo "$LATEST_VERSION" | sed 's/^go//')"
+
+          echo "Current version number: $CURRENT_NUM"
+          echo "Latest version number: $LATEST_NUM"
+
+          if [ "$CURRENT_NUM" != "$LATEST_NUM" ]; then
+            echo "New Go version available: $LATEST_VERSION"
+            echo "update_needed=true" >> "$GITHUB_OUTPUT"
+            echo "new_version=$LATEST_VERSION" >> "$GITHUB_OUTPUT"
+          else
+            echo "Go version is up to date"
+            echo "update_needed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Update go.mod with new Go version
+        if: steps.check-existing-prs.outputs.skip_update == 'false' && steps.version-check.outputs.update_needed == 'true'
+        run: |
+          NEW_VERSION="$(echo "${{ steps.version-check.outputs.new_version }}" | sed 's/^go//')"
+          sed -i.bak "s/^go .*/go $NEW_VERSION/" go.mod
+          rm -f go.mod.bak
+          echo "Updated go.mod to use Go version: $NEW_VERSION"
+
+      - name: Run go mod tidy
+        if: steps.check-existing-prs.outputs.skip_update == 'false' && steps.version-check.outputs.update_needed == 'true'
+        run: go mod tidy
+
+      - name: Check for changes
+        id: changes
+        if: steps.check-existing-prs.outputs.skip_update == 'false' && steps.version-check.outputs.update_needed == 'true'
+        run: |
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No changes detected, skipping PR creation"
+            echo "skip_pr=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Changes detected, will create PR"
+            echo "skip_pr=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create pull request
+        if: steps.check-existing-prs.outputs.skip_update == 'false' && steps.version-check.outputs.update_needed == 'true' && steps.changes.outputs.skip_pr == 'false'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: update Go version to ${{ steps.version-check.outputs.new_version }}"
+          title: "chore: update Go version to ${{ steps.version-check.outputs.new_version }}"
+          body: |
+            Automated PR to update Go version from `${{ steps.current-version.outputs.current_version }}` to `${{ steps.version-check.outputs.new_version }}`.
+
+            This PR was automatically generated after detecting a newer stable Go version.
+          labels: |
+            automated
+            dependencies
+            go-version-update
+          branch: chore/update-go-version
+          delete-branch: true
+          add-paths: |
+            go.mod
+            go.sum
+
+      - name: Skip message - no update needed
+        if: steps.check-existing-prs.outputs.skip_update == 'false' && steps.version-check.outputs.update_needed == 'false'
+        run: echo "No Go version update needed. Current version is up to date."
+
+      - name: Skip message - existing PR
+        if: steps.check-existing-prs.outputs.skip_update == 'true'
+        run: echo "Skipping Go version update because a PR with go-version-update label is already open."
