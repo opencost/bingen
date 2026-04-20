@@ -2,11 +2,11 @@ version: "2"
 
 run:
   timeout: 5m
-  skip-dirs:
-    - tests
+  tests: false
 
-issues:
-  # Keep full linter coverage while excluding generated artifacts and test trees.
-  exclude-generated: strict
-  exclude-files:
-    - ".*_codecs\\.go$"
+linters:
+  exclusions:
+    generated: strict
+    paths:
+      - "^tests/"
+      - ".*_codecs\\.go$"
