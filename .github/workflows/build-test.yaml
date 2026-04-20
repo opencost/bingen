@@ -1,0 +1,59 @@
+name: Build/Test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  merge_group:
+    types: [checks_requested]
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - name: Install Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "stable"
+
+      - name: Go mod cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+
+      - name: Test with coverage
+        run: go test ./... -coverprofile=coverage.out
+
+      - name: Build all packages
+        run: go build ./...
+
+      - name: Capture PR metadata
+        if: github.event_name == 'pull_request'
+        env:
+          PR_NUM: ${{ github.event.number }}
+        run: |
+          echo "$PR_NUM" > pr_num.txt
+          echo "${GITHUB_BASE_REF}" > base.txt
+          echo "${GITHUB_HEAD_REF}" > head.txt
+
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: code-coverage
+          path: |
+            coverage.out
+            pr_num.txt
+            base.txt
+            head.txt
+          if-no-files-found: ignore
