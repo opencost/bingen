@@ -13,6 +13,13 @@ import (
 	"github.com/opencost/bingen/pkg/types"
 )
 
+func titleName(s string) string {
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
+}
+
 // default type format mapping with specific casts
 var defaultValues map[uint8]string = map[uint8]string{
 	types.TypeInt:     "int(%s)",
@@ -142,8 +149,9 @@ func WriteConstants(out *bytes.Buffer, pkg string, versionSets []meta.VersionSet
 	fmt.Fprintf(out, BingenConstants, pkg)
 	fmt.Fprintf(out, "const(\n")
 	for _, versionSet := range versionSets {
-		constName := fmt.Sprintf("%sCodecVersion", strings.Title(versionSet.Name()))
-		fmt.Fprintf(out, "    // %s is used for any resources listed in the %s version set\n", constName, strings.Title(versionSet.Name()))
+		versionSetName := titleName(versionSet.Name())
+		constName := fmt.Sprintf("%sCodecVersion", versionSetName)
+		fmt.Fprintf(out, "    // %s is used for any resources listed in the %s version set\n", constName, versionSetName)
 		fmt.Fprintf(out, "    %s uint8 = %d\n\n", constName, versionSet.Version())
 	}
 	fmt.Fprintf(out, ")\n\n")
@@ -159,7 +167,7 @@ func WriteStreamableTypeMap(out *bytes.Buffer, types []*types.StructType) {
 		fmt.Fprintf(out, "    reflect.TypeFor[%s](): New%sStream,\n", t.Name(), t.Name())
 	}
 	fmt.Fprintf(out, "}\n")
-	fmt.Fprintf(out, BingenNewStreamForCode)
+	fmt.Fprintf(out, "%s", BingenNewStreamForCode)
 }
 
 func WriteStreamSupportTypes(out *bytes.Buffer) {
@@ -304,7 +312,7 @@ func WriteTypeRaw(ctx GeneratorContext, t types.GenType, target vars.Target) {
 }
 
 func WriteBasicType(ctx GeneratorContext, bt *types.BasicType, target vars.Target) {
-	var star string = ""
+	star := ""
 	if bt.IsPtr() {
 		star = "*"
 	}
@@ -627,7 +635,7 @@ func ReadTypeRaw(ctx GeneratorContext, t types.GenType, target vars.Target, set 
 func ReadBasicType(ctx GeneratorContext, bt *types.BasicType, target vars.Target, set bool) {
 	varName := ctx.NextVar()
 
-	var resultVar string = varName
+	resultVar := varName
 	if bt.IsPtr() {
 		resultVar = "&" + resultVar
 	}
@@ -830,7 +838,7 @@ func ReadAliasType(ctx GeneratorContext, t *types.AliasType, target vars.Target,
 		e = ":="
 	}
 
-	var atype string = t.Name()
+	atype := t.Name()
 	if t.IsPtr() {
 		atype = "*" + t.Name()
 	}

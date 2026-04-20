@@ -451,9 +451,7 @@ func (tc *typeCollector) toStructField(typeName string, typeField *AnnotatedFiel
 
 	// filter fields to ignore
 	names := []*ast.Ident{}
-	for _, i := range f.Names {
-		names = append(names, i)
-	}
+	names = append(names, f.Names...)
 	if len(names) == 0 {
 		return fields
 	}
@@ -670,15 +668,15 @@ func findFields(t *AnnotatedType) ([]*AnnotatedField, error) {
 // create field opts from the field annotation
 func toFieldOpts(a *meta.Annotation) (*FieldOpts, error) {
 	if a == nil {
-		return nil, fmt.Errorf("Nil Annotation")
+		return nil, fmt.Errorf("nil annotation")
 	}
 	if a.Command != meta.AnnotationField {
-		return nil, fmt.Errorf("Field annotation does not use 'field' command.")
+		return nil, fmt.Errorf("field annotation does not use 'field' command")
 	}
 
 	var version uint8
 	var defaultVal string
-	var ignore bool = false
+	ignore := false
 
 	for option := range a.Options {
 		if option == meta.AnnotationFieldIgnore {

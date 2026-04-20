@@ -87,19 +87,25 @@ func (b *Buffer) WriteInt8(i int8) {
 // WriteInt16 writes an int16 value to the buffer.
 func (b *Buffer) WriteInt16(i int16) {
 	b.checkRO()
-	writeInt16(b.bw, i)
+	if err := writeInt16(b.bw, i); err != nil {
+		panic(err)
+	}
 }
 
 // WriteInt32 writes an int32 value to the buffer.
 func (b *Buffer) WriteInt32(i int32) {
 	b.checkRO()
-	writeInt32(b.bw, i)
+	if err := writeInt32(b.bw, i); err != nil {
+		panic(err)
+	}
 }
 
 // WriteInt64 writes an int64 value to the buffer.
 func (b *Buffer) WriteInt64(i int64) {
 	b.checkRO()
-	writeInt64(b.bw, i)
+	if err := writeInt64(b.bw, i); err != nil {
+		panic(err)
+	}
 }
 
 // WriteUInt writes a uint value to the buffer.

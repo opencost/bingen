@@ -64,5 +64,6 @@ func (bp *bufferPool) Put(buf []byte) {
 	}
 
 	i := putIndex(capacity)
+	//nolint:staticcheck // sync.Pool stores []byte by value here intentionally; changing to pointer would alter pool API.
 	bp.pools[i].Put(buf[:cap(buf)])
 }

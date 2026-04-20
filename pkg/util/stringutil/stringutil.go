@@ -1,9 +1,7 @@
 package stringutil
 
 import (
-	"math/rand"
 	"sync"
-	"time"
 )
 
 type stringBank struct {
@@ -54,10 +52,6 @@ func (sb *stringBank) Clear() {
 // stringBank is an unbounded string cache that is thread-safe. It is especially useful if
 // storing a large frequency of dynamically allocated duplicate strings.
 var strings = newStringBank() // sync.Map
-
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
 
 // Bank will return a non-copy of a string if it has been used before. Otherwise, it will store
 // the string as the unique instance.
