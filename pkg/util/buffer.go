@@ -159,7 +159,9 @@ func (b *Buffer) WriteFloat32(i float32) {
 // WriteFloat64 writes a float64 value to the buffer.
 func (b *Buffer) WriteFloat64(i float64) {
 	b.checkRO()
-	writeFloat64(b.bw, i)
+	if err := writeFloat64(b.bw, i); err != nil {
+		panic(err)
+	}
 }
 
 // WriteString writes the string's length as a uint16 followed by the string contents.
@@ -171,7 +173,9 @@ func (b *Buffer) WriteString(i string) {
 	if len(s) > math.MaxUint16 {
 		s = s[:math.MaxUint16]
 	}
-	writeUint16(b.bw, uint16(len(s)))
+	if err := writeUint16(b.bw, uint16(len(s))); err != nil {
+		panic(err)
+	}
 	b.bw.Write(s)
 }
 
@@ -214,7 +218,9 @@ func (b *Buffer) checkRO() {
 func (b *Buffer) ReadBool() bool {
 	var i bool
 	if b.bw != nil {
-		readBool(b.bw, &i)
+		if err := readBool(b.bw, &i); err != nil {
+			panic(err)
+		}
 		return i
 	}
 
