@@ -2,6 +2,11 @@
 Binary Codec Generator for annotated structs in go.
 
 ### Install
+Go modules are verified against a public database on known modules. Since this repository is private, you have to explicitly instruct `go get` to bypass public verification. To do this, set the `GOPRIVATE` environment variable to include this repository. For example:
+```bash
+export GOPRIVATE=github.com/opencost/bingen
+```
+
 Using an ssh-agent and git, issue a global config update:
 ```bash
 $ git config --global url.git@github.com:.insteadOf https://github.com/
@@ -31,7 +36,7 @@ Flags:
 ```
 
 ##### Buffer
-The buffer flag should point to the location of the `util.Buffer` type. Since this is currently a private repository, it's best to just copy/paste https://github.com/opencost/bingen/blob/develop/pkg/util/buffer.go into a `pkg/util` within your project. For instance, let's say you copy `buffer.go` to `pkg/util` in your project `github.com/bruh/gen-test`, then the buffer flag would be passed as `-buffer=github.com/bruh/gen-test/pkg/util`
+The buffer flag should point to the location of the `util.Buffer` type. Since this is currently a private repository, it's best to just copy/paste https://github.com/opencost/bingen/blob/main/pkg/util/buffer.go into a `pkg/util` within your project. For instance, let's say you copy `buffer.go` to `pkg/util` in your project `github.com/bruh/gen-test`, then the buffer flag would be passed as `-buffer=github.com/bruh/gen-test/pkg/util`
 
 ##### Example
 The easiest way to use `bingen` is via `go:generate`. In a project that contains custom struct types you wish to generate `MarshalBinary` and `UnmarshalBinary` methods for, navigate to the target package. Assuming that the package `pkg/stuff` has 3 types you want to generate binary marshal/unmarshal for: `Foo`, `Bar`, and `Widget`, create a new source file in `pkg/stuff` with the following:
