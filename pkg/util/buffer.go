@@ -15,8 +15,8 @@ import (
 
 var bytePool *bufferPool = newBufferPool()
 
-// NonPrimitiveTypeError represents an error where the user provided a non-primitive data type for reading/writing
-var NonPrimitiveTypeError error = errors.New("Type provided to read/write does not fit inside 8 bytes.")
+// ErrNonPrimitiveType represents an error where a non-primitive data type was provided for reading/writing.
+var ErrNonPrimitiveType error = errors.New("type provided to read/write does not fit inside 8 bytes")
 
 // Buffer is a utility type which implements a very basic binary protocol for
 // writing core go types.
@@ -63,79 +63,105 @@ func NewBufferFromReader(reader io.Reader) *Buffer {
 // WriteBool writes a bool value to the buffer
 func (b *Buffer) WriteBool(i bool) {
 	b.checkRO()
-	writeBool(b.bw, i)
+	if err := writeBool(b.bw, i); err != nil {
+		panic(err)
+	}
 }
 
 // WriteInt writes an int value to the buffer.
 func (b *Buffer) WriteInt(i int) {
 	b.checkRO()
-	writeInt(b.bw, i)
+	if err := writeInt(b.bw, i); err != nil {
+		panic(err)
+	}
 }
 
 // WriteInt8 writes an int8 value to the buffer.
 func (b *Buffer) WriteInt8(i int8) {
 	b.checkRO()
-	writeInt8(b.bw, i)
+	if err := writeInt8(b.bw, i); err != nil {
+		panic(err)
+	}
 }
 
 // WriteInt16 writes an int16 value to the buffer.
 func (b *Buffer) WriteInt16(i int16) {
 	b.checkRO()
-	writeInt16(b.bw, i)
+	if err := writeInt16(b.bw, i); err != nil {
+		panic(err)
+	}
 }
 
 // WriteInt32 writes an int32 value to the buffer.
 func (b *Buffer) WriteInt32(i int32) {
 	b.checkRO()
-	writeInt32(b.bw, i)
+	if err := writeInt32(b.bw, i); err != nil {
+		panic(err)
+	}
 }
 
 // WriteInt64 writes an int64 value to the buffer.
 func (b *Buffer) WriteInt64(i int64) {
 	b.checkRO()
-	writeInt64(b.bw, i)
+	if err := writeInt64(b.bw, i); err != nil {
+		panic(err)
+	}
 }
 
 // WriteUInt writes a uint value to the buffer.
 func (b *Buffer) WriteUInt(i uint) {
 	b.checkRO()
-	writeUint(b.bw, i)
+	if err := writeUint(b.bw, i); err != nil {
+		panic(err)
+	}
 }
 
 // WriteUInt8 writes a uint8 value to the buffer.
 func (b *Buffer) WriteUInt8(i uint8) {
 	b.checkRO()
-	writeUint8(b.bw, i)
+	if err := writeUint8(b.bw, i); err != nil {
+		panic(err)
+	}
 }
 
 // WriteUInt16 writes a uint16 value to the buffer.
 func (b *Buffer) WriteUInt16(i uint16) {
 	b.checkRO()
-	writeUint16(b.bw, i)
+	if err := writeUint16(b.bw, i); err != nil {
+		panic(err)
+	}
 }
 
 // WriteUInt32 writes a uint32 value to the buffer.
 func (b *Buffer) WriteUInt32(i uint32) {
 	b.checkRO()
-	writeUint32(b.bw, i)
+	if err := writeUint32(b.bw, i); err != nil {
+		panic(err)
+	}
 }
 
 // WriteUInt64 writes a uint64 value to the buffer.
 func (b *Buffer) WriteUInt64(i uint64) {
 	b.checkRO()
-	writeUint64(b.bw, i)
+	if err := writeUint64(b.bw, i); err != nil {
+		panic(err)
+	}
 }
 
 // WriteFloat32 writes a float32 value to the buffer.
 func (b *Buffer) WriteFloat32(i float32) {
 	b.checkRO()
-	writeFloat32(b.bw, i)
+	if err := writeFloat32(b.bw, i); err != nil {
+		panic(err)
+	}
 }
 
 // WriteFloat64 writes a float64 value to the buffer.
 func (b *Buffer) WriteFloat64(i float64) {
 	b.checkRO()
-	writeFloat64(b.bw, i)
+	if err := writeFloat64(b.bw, i); err != nil {
+		panic(err)
+	}
 }
 
 // WriteString writes the string's length as a uint16 followed by the string contents.
@@ -147,7 +173,9 @@ func (b *Buffer) WriteString(i string) {
 	if len(s) > math.MaxUint16 {
 		s = s[:math.MaxUint16]
 	}
-	writeUint16(b.bw, uint16(len(s)))
+	if err := writeUint16(b.bw, uint16(len(s))); err != nil {
+		panic(err)
+	}
 	b.bw.Write(s)
 }
 
@@ -174,7 +202,7 @@ func (b *Buffer) Bytes() []byte {
 
 func (b *Buffer) Peek(length int) ([]byte, error) {
 	if b.bw != nil {
-		return nil, fmt.Errorf("unsupported Peek() operation on read/write buffer.")
+		return nil, fmt.Errorf("unsupported peek operation on read/write buffer")
 	}
 	return b.b.Peek(length)
 }
@@ -186,15 +214,24 @@ func (b *Buffer) checkRO() {
 	}
 }
 
+// must panics if err is non-nil. The Read* methods are part of a binary protocol
+// surface where I/O failure is non-recoverable for the caller, so we surface the
+// error as a panic to preserve the existing void-return signatures.
+func must(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+
 // ReadBool reads a bool value from the buffer.
 func (b *Buffer) ReadBool() bool {
 	var i bool
 	if b.bw != nil {
-		readBool(b.bw, &i)
+		must(readBool(b.bw, &i))
 		return i
 	}
 
-	readBuffBool(b.b, &i)
+	must(readBuffBool(b.b, &i))
 	return i
 }
 
@@ -202,11 +239,11 @@ func (b *Buffer) ReadBool() bool {
 func (b *Buffer) ReadInt() int {
 	var i int
 	if b.bw != nil {
-		readInt(b.bw, &i)
+		must(readInt(b.bw, &i))
 		return i
 	}
 
-	readBuffInt(b.b, &i)
+	must(readBuffInt(b.b, &i))
 	return i
 }
 
@@ -214,11 +251,11 @@ func (b *Buffer) ReadInt() int {
 func (b *Buffer) ReadInt8() int8 {
 	var i int8
 	if b.bw != nil {
-		readInt8(b.bw, &i)
+		must(readInt8(b.bw, &i))
 		return i
 	}
 
-	readBuffInt8(b.b, &i)
+	must(readBuffInt8(b.b, &i))
 	return i
 }
 
@@ -226,11 +263,11 @@ func (b *Buffer) ReadInt8() int8 {
 func (b *Buffer) ReadInt16() int16 {
 	var i int16
 	if b.bw != nil {
-		readInt16(b.bw, &i)
+		must(readInt16(b.bw, &i))
 		return i
 	}
 
-	readBuffInt16(b.b, &i)
+	must(readBuffInt16(b.b, &i))
 	return i
 }
 
@@ -238,11 +275,11 @@ func (b *Buffer) ReadInt16() int16 {
 func (b *Buffer) ReadInt32() int32 {
 	var i int32
 	if b.bw != nil {
-		readInt32(b.bw, &i)
+		must(readInt32(b.bw, &i))
 		return i
 	}
 
-	readBuffInt32(b.b, &i)
+	must(readBuffInt32(b.b, &i))
 	return i
 }
 
@@ -250,11 +287,11 @@ func (b *Buffer) ReadInt32() int32 {
 func (b *Buffer) ReadInt64() int64 {
 	var i int64
 	if b.bw != nil {
-		readInt64(b.bw, &i)
+		must(readInt64(b.bw, &i))
 		return i
 	}
 
-	readBuffInt64(b.b, &i)
+	must(readBuffInt64(b.b, &i))
 	return i
 }
 
@@ -262,11 +299,11 @@ func (b *Buffer) ReadInt64() int64 {
 func (b *Buffer) ReadUInt() uint {
 	var i uint
 	if b.bw != nil {
-		readUint(b.bw, &i)
+		must(readUint(b.bw, &i))
 		return i
 	}
 
-	readBuffUint(b.b, &i)
+	must(readBuffUint(b.b, &i))
 	return i
 }
 
@@ -274,11 +311,11 @@ func (b *Buffer) ReadUInt() uint {
 func (b *Buffer) ReadUInt8() uint8 {
 	var i uint8
 	if b.bw != nil {
-		readUint8(b.bw, &i)
+		must(readUint8(b.bw, &i))
 		return i
 	}
 
-	readBuffUint8(b.b, &i)
+	must(readBuffUint8(b.b, &i))
 	return i
 }
 
@@ -286,11 +323,11 @@ func (b *Buffer) ReadUInt8() uint8 {
 func (b *Buffer) ReadUInt16() uint16 {
 	var i uint16
 	if b.bw != nil {
-		readUint16(b.bw, &i)
+		must(readUint16(b.bw, &i))
 		return i
 	}
 
-	readBuffUint16(b.b, &i)
+	must(readBuffUint16(b.b, &i))
 	return i
 }
 
@@ -298,11 +335,11 @@ func (b *Buffer) ReadUInt16() uint16 {
 func (b *Buffer) ReadUInt32() uint32 {
 	var i uint32
 	if b.bw != nil {
-		readUint32(b.bw, &i)
+		must(readUint32(b.bw, &i))
 		return i
 	}
 
-	readBuffUint32(b.b, &i)
+	must(readBuffUint32(b.b, &i))
 	return i
 }
 
@@ -310,11 +347,11 @@ func (b *Buffer) ReadUInt32() uint32 {
 func (b *Buffer) ReadUInt64() uint64 {
 	var i uint64
 	if b.bw != nil {
-		readUint64(b.bw, &i)
+		must(readUint64(b.bw, &i))
 		return i
 	}
 
-	readBuffUint64(b.b, &i)
+	must(readBuffUint64(b.b, &i))
 	return i
 }
 
@@ -322,11 +359,11 @@ func (b *Buffer) ReadUInt64() uint64 {
 func (b *Buffer) ReadFloat32() float32 {
 	var i float32
 	if b.bw != nil {
-		readFloat32(b.bw, &i)
+		must(readFloat32(b.bw, &i))
 		return i
 	}
 
-	readBuffFloat32(b.b, &i)
+	must(readBuffFloat32(b.b, &i))
 	return i
 }
 
@@ -334,11 +371,11 @@ func (b *Buffer) ReadFloat32() float32 {
 func (b *Buffer) ReadFloat64() float64 {
 	var i float64
 	if b.bw != nil {
-		readFloat64(b.bw, &i)
+		must(readFloat64(b.bw, &i))
 		return i
 	}
 
-	readBuffFloat64(b.b, &i)
+	must(readBuffFloat64(b.b, &i))
 	return i
 }
 
@@ -347,11 +384,11 @@ func (b *Buffer) ReadFloat64() float64 {
 func (b *Buffer) ReadString() string {
 	var l uint16
 	if b.bw != nil {
-		readUint16(b.bw, &l)
+		must(readUint16(b.bw, &l))
 		return bytesToString(b.bw.Next(int(l)))
 	}
 
-	readBuffUint16(b.b, &l)
+	must(readBuffUint16(b.b, &l))
 
 	bytes := bytePool.Get(int(l))
 	defer bytePool.Put(bytes)
