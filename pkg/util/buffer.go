@@ -63,19 +63,25 @@ func NewBufferFromReader(reader io.Reader) *Buffer {
 // WriteBool writes a bool value to the buffer
 func (b *Buffer) WriteBool(i bool) {
 	b.checkRO()
-	writeBool(b.bw, i)
+	if err := writeBool(b.bw, i); err != nil {
+		panic(err)
+	}
 }
 
 // WriteInt writes an int value to the buffer.
 func (b *Buffer) WriteInt(i int) {
 	b.checkRO()
-	writeInt(b.bw, i)
+	if err := writeInt(b.bw, i); err != nil {
+		panic(err)
+	}
 }
 
 // WriteInt8 writes an int8 value to the buffer.
 func (b *Buffer) WriteInt8(i int8) {
 	b.checkRO()
-	writeInt8(b.bw, i)
+	if err := writeInt8(b.bw, i); err != nil {
+		panic(err)
+	}
 }
 
 // WriteInt16 writes an int16 value to the buffer.
