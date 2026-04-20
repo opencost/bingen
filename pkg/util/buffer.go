@@ -16,7 +16,7 @@ import (
 var bytePool *bufferPool = newBufferPool()
 
 // NonPrimitiveTypeError represents an error where the user provided a non-primitive data type for reading/writing
-var NonPrimitiveTypeError error = errors.New("Type provided to read/write does not fit inside 8 bytes.")
+var NonPrimitiveTypeError error = errors.New("type provided to read/write does not fit inside 8 bytes")
 
 // Buffer is a utility type which implements a very basic binary protocol for
 // writing core go types.
@@ -111,19 +111,25 @@ func (b *Buffer) WriteInt64(i int64) {
 // WriteUInt writes a uint value to the buffer.
 func (b *Buffer) WriteUInt(i uint) {
 	b.checkRO()
-	writeUint(b.bw, i)
+	if err := writeUint(b.bw, i); err != nil {
+		panic(err)
+	}
 }
 
 // WriteUInt8 writes a uint8 value to the buffer.
 func (b *Buffer) WriteUInt8(i uint8) {
 	b.checkRO()
-	writeUint8(b.bw, i)
+	if err := writeUint8(b.bw, i); err != nil {
+		panic(err)
+	}
 }
 
 // WriteUInt16 writes a uint16 value to the buffer.
 func (b *Buffer) WriteUInt16(i uint16) {
 	b.checkRO()
-	writeUint16(b.bw, i)
+	if err := writeUint16(b.bw, i); err != nil {
+		panic(err)
+	}
 }
 
 // WriteUInt32 writes a uint32 value to the buffer.
@@ -186,7 +192,7 @@ func (b *Buffer) Bytes() []byte {
 
 func (b *Buffer) Peek(length int) ([]byte, error) {
 	if b.bw != nil {
-		return nil, fmt.Errorf("unsupported Peek() operation on read/write buffer.")
+		return nil, fmt.Errorf("unsupported peek operation on read/write buffer")
 	}
 	return b.b.Peek(length)
 }

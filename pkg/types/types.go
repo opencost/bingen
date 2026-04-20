@@ -686,7 +686,7 @@ func toFieldOpts(a *meta.Annotation) (*FieldOpts, error) {
 
 		strs := strings.Split(option, "=")
 		if len(strs) < 2 {
-			return nil, fmt.Errorf("No set(=) detected for option.")
+			return nil, fmt.Errorf("no set(=) detected for option")
 		}
 
 		prop := strings.TrimSpace(strs[0])
@@ -694,7 +694,7 @@ func toFieldOpts(a *meta.Annotation) (*FieldOpts, error) {
 		if prop == meta.AnnotationFieldVersion {
 			r, err := strconv.ParseUint(value, 10, 8)
 			if err != nil {
-				return nil, fmt.Errorf("Failed to parse uint8 version from: \"%s\"", value)
+				return nil, fmt.Errorf("failed to parse uint8 version from %q", value)
 			}
 			version = uint8(r)
 		}
