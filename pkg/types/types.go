@@ -35,6 +35,8 @@ const (
 	TypeSlice
 	TypeInterface
 	TypeStruct
+	TypeReference
+	TypeAlias
 )
 
 // BasicTypes
@@ -397,7 +399,7 @@ func (tc *typeCollector) AddInterface(t *AnnotatedType) {
 func (tc *typeCollector) AddAlias(t *AnnotatedType, isPtr bool) {
 	resolved := tc.toGenType(t.T.Type, "", isPtr)
 	gt := &AliasType{
-		BasicType: NewBasicType("", t.T.Name.Name, TypeStruct, false, false),
+		BasicType: NewBasicType("", t.T.Name.Name, TypeAlias, false, false),
 		Alias:     resolved,
 	}
 
@@ -554,7 +556,7 @@ func (tc *typeCollector) toGenType(t ast.Expr, selectorName string, isPtr bool) 
 		// initialize with a resolution function.
 		var rt *ReferenceType
 		rt = &ReferenceType{
-			BasicType: NewBasicType("", fullName, TypeStruct, isPtr, false),
+			BasicType: NewBasicType("", fullName, TypeReference, isPtr, false),
 			Resolve: func() GenType {
 				if resolvedType, ok := tc.knownTypes[rt.Name()]; ok {
 					if rt.IsPtr() {

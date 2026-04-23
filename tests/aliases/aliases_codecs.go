@@ -27,16 +27,11 @@ import (
 const (
 	// GeneratorPackageName is the package the generator is targetting
 	GeneratorPackageName string = "aliases"
-)
 
-// BinaryTags represent the formatting tag used for specific optimization features
-const (
 	// BinaryTagStringTable is written and/or read prior to the existence of a string
 	// table (where each index is encoded as a string entry in the resource
 	BinaryTagStringTable string = "BGST"
-)
 
-const (
 	// DefaultCodecVersion is used for any resources listed in the Default version set
 	DefaultCodecVersion uint8 = 16
 )
@@ -102,8 +97,7 @@ func BingenFileBackedStringTableDir() string {
 //  Type Map
 //--------------------------------------------------------------------------
 
-// Generated type map for resolving interface implementations to
-// to concrete types
+// Generated type map for resolving interface implementations to to concrete types
 var typeMap map[string]reflect.Type = map[string]reflect.Type{
 	"Info":   reflect.TypeFor[Info](),
 	"Parent": reflect.TypeFor[Parent](),
@@ -349,7 +343,7 @@ type StringTableReader interface {
 
 // SliceStringTableReader is a basic pre-loaded []string that provides index-based access.
 // The cost of this implementation is holding all strings in memory, which provides faster
-// lookup performance for memory usage.
+// lookup performance at the expense of memory usage.
 type SliceStringTableReader struct {
 	table []string
 }
@@ -652,9 +646,9 @@ func (target *Info) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
 			if e, ok := r.(error); ok {
 				err = e
 			} else if s, ok := r.(string); ok {
-				err = fmt.Errorf("Unexpected panic: %s", s)
+				err = fmt.Errorf("unexpected panic: %s", s)
 			} else {
-				err = fmt.Errorf("Unexpected panic: %+v", r)
+				err = fmt.Errorf("unexpected panic: %+v", r)
 			}
 		}
 	}()
@@ -668,7 +662,9 @@ func (target *Info) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
 	} else {
 		buff.WriteString(target.Name) // write string
 	}
+
 	buff.WriteUInt(target.Age) // write uint
+
 	return nil
 }
 
@@ -677,6 +673,7 @@ func (target *Info) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
 func (target *Info) UnmarshalBinary(data []byte) error {
 	ctx := NewDecodingContextFromBytes(data)
 	defer ctx.Close()
+
 	err := target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
@@ -690,6 +687,7 @@ func (target *Info) UnmarshalBinary(data []byte) error {
 func (target *Info) UnmarshalBinaryFromReader(reader io.Reader) error {
 	ctx := NewDecodingContextFromReader(reader)
 	defer ctx.Close()
+
 	err := target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
@@ -707,9 +705,9 @@ func (target *Info) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error)
 			if e, ok := r.(error); ok {
 				err = e
 			} else if s, ok := r.(string); ok {
-				err = fmt.Errorf("Unexpected panic: %s", s)
+				err = fmt.Errorf("unexpected panic: %s", s)
 			} else {
-				err = fmt.Errorf("Unexpected panic: %+v", r)
+				err = fmt.Errorf("unexpected panic: %+v", r)
 			}
 		}
 	}()
@@ -769,9 +767,9 @@ func (target *Parent) MarshalBinaryWithContext(ctx *EncodingContext) (err error)
 			if e, ok := r.(error); ok {
 				err = e
 			} else if s, ok := r.(string); ok {
-				err = fmt.Errorf("Unexpected panic: %s", s)
+				err = fmt.Errorf("unexpected panic: %s", s)
 			} else {
-				err = fmt.Errorf("Unexpected panic: %+v", r)
+				err = fmt.Errorf("unexpected panic: %+v", r)
 			}
 		}
 	}()
@@ -785,14 +783,18 @@ func (target *Parent) MarshalBinaryWithContext(ctx *EncodingContext) (err error)
 	} else {
 		buff.WriteString(target.Name) // write string
 	}
+
 	buff.WriteInt(target.Age) // write int
+
 	// --- [begin][write][alias](Child) ---
+
 	if ctx.IsStringTable() {
 		b := ctx.Table.AddOrGet(string(target.FirstChild))
 		buff.WriteInt(b) // write table index
 	} else {
 		buff.WriteString(string(target.FirstChild)) // write string
 	}
+
 	// --- [end][write][alias](Child) ---
 
 	// --- [begin][write][alias](ChildInfo) ---
@@ -811,28 +813,29 @@ func (target *Parent) MarshalBinaryWithContext(ctx *EncodingContext) (err error)
 
 	}
 	// --- [end][write][alias](ChildInfo) ---
-
 	if target.Children == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
 
 		// --- [begin][write][slice]([]Child) ---
-		buff.WriteInt(len(target.Children)) // array length
-		for i := 0; i < len(target.Children); i++ {
+		buff.WriteInt(len(target.Children)) // slice length
+		for i := range target.Children {
 			// --- [begin][write][alias](Child) ---
+
 			if ctx.IsStringTable() {
 				c := ctx.Table.AddOrGet(string(target.Children[i]))
 				buff.WriteInt(c) // write table index
 			} else {
 				buff.WriteString(string(target.Children[i])) // write string
 			}
-			// --- [end][write][alias](Child) ---
 
+			// --- [end][write][alias](Child) ---
 		}
 		// --- [end][write][slice]([]Child) ---
 
 	}
+
 	// --- [begin][write][alias](OtherChildInfo) ---
 	if []ChildInfo(target.ChildrenInfo) == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
@@ -840,8 +843,8 @@ func (target *Parent) MarshalBinaryWithContext(ctx *EncodingContext) (err error)
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
 
 		// --- [begin][write][slice]([]ChildInfo) ---
-		buff.WriteInt(len([]ChildInfo(target.ChildrenInfo))) // array length
-		for j := 0; j < len([]ChildInfo(target.ChildrenInfo)); j++ {
+		buff.WriteInt(len([]ChildInfo(target.ChildrenInfo))) // slice length
+		for j := range []ChildInfo(target.ChildrenInfo) {
 			// --- [begin][write][alias](ChildInfo) ---
 			if ((*Info)([]ChildInfo(target.ChildrenInfo)[j])) == nil {
 				buff.WriteUInt8(uint8(0)) // write nil byte
@@ -858,7 +861,6 @@ func (target *Parent) MarshalBinaryWithContext(ctx *EncodingContext) (err error)
 
 			}
 			// --- [end][write][alias](ChildInfo) ---
-
 		}
 		// --- [end][write][slice]([]ChildInfo) ---
 
@@ -873,6 +875,7 @@ func (target *Parent) MarshalBinaryWithContext(ctx *EncodingContext) (err error)
 func (target *Parent) UnmarshalBinary(data []byte) error {
 	ctx := NewDecodingContextFromBytes(data)
 	defer ctx.Close()
+
 	err := target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
@@ -886,6 +889,7 @@ func (target *Parent) UnmarshalBinary(data []byte) error {
 func (target *Parent) UnmarshalBinaryFromReader(reader io.Reader) error {
 	ctx := NewDecodingContextFromReader(reader)
 	defer ctx.Close()
+
 	err := target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
@@ -903,9 +907,9 @@ func (target *Parent) UnmarshalBinaryWithContext(ctx *DecodingContext) (err erro
 			if e, ok := r.(error); ok {
 				err = e
 			} else if s, ok := r.(string); ok {
-				err = fmt.Errorf("Unexpected panic: %s", s)
+				err = fmt.Errorf("unexpected panic: %s", s)
 			} else {
-				err = fmt.Errorf("Unexpected panic: %+v", r)
+				err = fmt.Errorf("unexpected panic: %+v", r)
 			}
 		}
 	}()
@@ -951,7 +955,7 @@ func (target *Parent) UnmarshalBinaryWithContext(ctx *DecodingContext) (err erro
 		l = nil
 	} else {
 		// --- [begin][read][struct](Info) ---
-		m := &Info{}
+		m := new(Info)
 		buff.ReadInt() // [compatibility, unused]
 		errA := m.UnmarshalBinaryWithContext(ctx)
 		if errA != nil {
@@ -961,6 +965,7 @@ func (target *Parent) UnmarshalBinaryWithContext(ctx *DecodingContext) (err erro
 		// --- [end][read][struct](Info) ---
 
 	}
+
 	target.FirstChildInfo = ChildInfo(l)
 	// --- [end][read][alias](ChildInfo) ---
 
@@ -968,9 +973,9 @@ func (target *Parent) UnmarshalBinaryWithContext(ctx *DecodingContext) (err erro
 		target.Children = nil
 	} else {
 		// --- [begin][read][slice]([]Child) ---
-		o := buff.ReadInt() // array len
+		o := buff.ReadInt() // slice len
 		n := make([]Child, o)
-		for i := 0; i < o; i++ {
+		for i := range o {
 			// --- [begin][read][alias](Child) ---
 			var q string
 			var s string
@@ -992,22 +997,23 @@ func (target *Parent) UnmarshalBinaryWithContext(ctx *DecodingContext) (err erro
 		// --- [end][read][slice]([]Child) ---
 
 	}
+
 	// --- [begin][read][alias](OtherChildInfo) ---
 	var u []ChildInfo
 	if buff.ReadUInt8() == uint8(0) {
 		u = nil
 	} else {
 		// --- [begin][read][slice]([]ChildInfo) ---
-		x := buff.ReadInt() // array len
+		x := buff.ReadInt() // slice len
 		w := make([]ChildInfo, x)
-		for j := 0; j < x; j++ {
+		for j := range x {
 			// --- [begin][read][alias](ChildInfo) ---
 			var aa *Info
 			if buff.ReadUInt8() == uint8(0) {
 				aa = nil
 			} else {
 				// --- [begin][read][struct](Info) ---
-				bb := &Info{}
+				bb := new(Info)
 				buff.ReadInt() // [compatibility, unused]
 				errB := bb.UnmarshalBinaryWithContext(ctx)
 				if errB != nil {
@@ -1017,6 +1023,7 @@ func (target *Parent) UnmarshalBinaryWithContext(ctx *DecodingContext) (err erro
 				// --- [end][read][struct](Info) ---
 
 			}
+
 			y := ChildInfo(aa)
 			// --- [end][read][alias](ChildInfo) ---
 
@@ -1026,6 +1033,7 @@ func (target *Parent) UnmarshalBinaryWithContext(ctx *DecodingContext) (err erro
 		// --- [end][read][slice]([]ChildInfo) ---
 
 	}
+
 	target.ChildrenInfo = OtherChildInfo(u)
 	// --- [end][read][alias](OtherChildInfo) ---
 
@@ -1038,7 +1046,7 @@ func (target *Parent) UnmarshalBinaryWithContext(ctx *DecodingContext) (err erro
 
 // ParentStream is a single use field stream for the contents of an Parent instance. Instead of creating an instance and populating
 // the fields on that instance, we provide a streaming iterator which yields (BingenFieldInfo, *BingenValue) tuples for each
-// stremable element. All slices and maps will be flattened one depth and each element streamed individually.
+// streamable element. All slices and maps will be flattened one depth and each element streamed individually.
 type ParentStream struct {
 	reader io.Reader
 	ctx    *DecodingContext
@@ -1080,7 +1088,7 @@ func (stream *ParentStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] {
 		version := buff.ReadUInt8()
 
 		if version > DefaultCodecVersion {
-			stream.err = fmt.Errorf("Invalid Version Unmarshaling Parent. Expected %d or less, got %d", DefaultCodecVersion, version)
+			stream.err = fmt.Errorf("Invalid Version Unmarshalling Parent. Expected %d or less, got %d", DefaultCodecVersion, version)
 			return
 		}
 
@@ -1099,10 +1107,10 @@ func (stream *ParentStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] {
 		}
 		b := c
 		a = b
-
 		if !yield(fi, singleV(a)) {
 			return
 		}
+
 		fi = BingenFieldInfo{
 			Type: reflect.TypeFor[int](),
 			Name: "Age",
@@ -1111,16 +1119,16 @@ func (stream *ParentStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] {
 		var e int
 		f := buff.ReadInt() // read int
 		e = f
-
 		if !yield(fi, singleV(e)) {
 			return
 		}
+
 		fi = BingenFieldInfo{
 			Type: reflect.TypeFor[Child](),
 			Name: "FirstChild",
 		}
+		// --- [begin][read][streaming-alias](Child) ---
 
-		// --- [begin][read][streamng-alias](Child) ---
 		var g string
 		var l string
 		if ctx.IsStringTable() {
@@ -1135,48 +1143,50 @@ func (stream *ParentStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] {
 		if !yield(fi, singleV(Child(g))) {
 			return
 		}
-		// --- [end][read][streamng-alias](Child) ---
+		// --- [end][read][streaming-alias](Child) ---
 
 		fi = BingenFieldInfo{
 			Type: reflect.TypeFor[ChildInfo](),
 			Name: "FirstChildInfo",
 		}
+		// --- [begin][read][streaming-alias](ChildInfo) ---
 
-		// --- [begin][read][streamng-alias](ChildInfo) ---
 		var n *Info
 		if buff.ReadUInt8() == uint8(0) {
 			n = nil
 		} else {
 			// --- [begin][read][struct](Info) ---
-			o := &Info{}
+			o := new(Info)
 			buff.ReadInt() // [compatibility, unused]
 			errA := o.UnmarshalBinaryWithContext(ctx)
 			if errA != nil {
 				stream.err = errA
 				return
+
 			}
 			n = o
 			// --- [end][read][struct](Info) ---
 
 		}
+
 		if !yield(fi, singleV(ChildInfo(n))) {
 			return
 		}
-		// --- [end][read][streamng-alias](ChildInfo) ---
+		// --- [end][read][streaming-alias](ChildInfo) ---
 
 		fi = BingenFieldInfo{
 			Type: reflect.TypeFor[[]Child](),
 			Name: "Children",
 		}
-
 		if buff.ReadUInt8() == uint8(0) {
 			if !yield(fi, nil) {
 				return
 			}
 		} else {
 			// --- [begin][read][streaming-slice]([]Child) ---
-			p := buff.ReadInt() // array len
-			for i := 0; i < p; i++ {
+			p := buff.ReadInt() // slice len
+			for i := range p {
+
 				// --- [begin][read][alias](Child) ---
 				var r string
 				var t string
@@ -1199,32 +1209,35 @@ func (stream *ParentStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] {
 			// --- [end][read][streaming-slice]([]Child) ---
 
 		}
+
 		fi = BingenFieldInfo{
 			Type: reflect.TypeFor[OtherChildInfo](),
 			Name: "ChildrenInfo",
 		}
-
-		// --- [begin][read][streamng-alias](OtherChildInfo) ---
+		// --- [begin][read][streaming-alias](OtherChildInfo) ---
 		// --- [begin][read][streaming-slice]([]ChildInfo) ---
-		w := buff.ReadInt() // array len
-		for j := 0; j < w; j++ {
+		w := buff.ReadInt() // slice len
+		for j := range w {
+
 			// --- [begin][read][alias](ChildInfo) ---
 			var y *Info
 			if buff.ReadUInt8() == uint8(0) {
 				y = nil
 			} else {
 				// --- [begin][read][struct](Info) ---
-				aa := &Info{}
+				aa := new(Info)
 				buff.ReadInt() // [compatibility, unused]
 				errB := aa.UnmarshalBinaryWithContext(ctx)
 				if errB != nil {
 					stream.err = errB
 					return
+
 				}
 				y = aa
 				// --- [end][read][struct](Info) ---
 
 			}
+
 			x := ChildInfo(y)
 			// --- [end][read][alias](ChildInfo) ---
 
@@ -1233,8 +1246,7 @@ func (stream *ParentStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] {
 			}
 		}
 		// --- [end][read][streaming-slice]([]ChildInfo) ---
-
-		// --- [end][read][streamng-alias](OtherChildInfo) ---
+		// --- [end][read][streaming-alias](OtherChildInfo) ---
 
 	}
 }

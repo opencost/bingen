@@ -1,0 +1,288 @@
+{{/*
+    streamYieldNil is a helper template for yielding a nil value to the stream iterator. This is used for 
+    nilable types when the value is determined to be nil during unmarshalling.
+ */}}
+{{- define "streamYieldNil" -}}
+    if !yield(fi, nil) {
+        return
+    }
+{{- end -}}
+
+{{/* 
+    streamYieldSingle is a helper template for yielding a single value to the stream iterator. This is used for 
+    basic types, struct fields, and any other time we want to yield a single value in the stream.
+ */}}
+{{- define "streamYieldSingle" -}}
+    if !yield(fi, singleV({{ .Value }})) {
+        return
+    }
+{{- end -}}
+
+{{/* 
+    streamYieldIndexed is a helper template for yielding an indexed or keyed value to the stream iterator. This is used for 
+    slices and maps when we want to yield each element individually with its corresponding index or key.
+ */}}
+{{- define "streamYieldIndexed" -}}
+    if !yield(fi, pairV({{ .Index }}, {{ .Value }})) {
+        return
+    }
+{{- end -}}
+
+{{/*
+    streamReadSlice handles the reading of slice types in a streaming fashion. We first read the length of the slice, and 
+    then iterate over each element, reading it and yielding it to the stream individually. This allows us to handle large slices 
+    without needing to read the entire slice into memory at once.
+ */}}
+{{- define "streamReadSlice" -}}
+    // --- [begin][read][streaming-slice]({{ .Type.Name }}) ---
+    {{ $lenVar := .Context.NextVar }}
+    {{- $loopVar := .Context.NextLoopVar }}
+    {{- $innerVar := .Context.NextVar -}}
+
+    {{ $lenVar }} := buff.ReadInt() // slice len 
+    for {{ $loopVar }} := range {{ $lenVar }} {
+        {{- $target := (AsTarget $innerVar) }}
+        {{ template "readType" (ToReadParams .Context .Type.InnerType $target true) }}
+        {{ template "streamYieldIndexed" (Map "Index" $loopVar "Value" $innerVar) }}
+    }
+    // --- [end][read][streaming-slice]({{ .Type.Name }}) ---
+{{- end -}}
+
+{{/* 
+    streamReadMap handles the reading of map types in a streaming fashion. We first read the length of the map, and then iterate 
+    over each key-value pair, reading them and yielding them to the stream individually. This allows us to handle large maps without
+    needing to read the entire map into memory at once.
+ */}}
+{{- define "streamReadMap" -}}
+    // --- [begin][read][streaming-map]({{ .Type.Name }}) ---
+    {{ $lenVar := .Context.NextVar }}
+    {{- $keyVar := .Context.NextMapVar }}
+    {{- $valVar := .Context.NextMapVar -}}
+
+    {{ $lenVar }} := buff.ReadInt() // map len 
+    for range {{ $lenVar }} {
+        {{- $keyTarget := (AsTarget $keyVar) }}
+        {{- $valTarget := (AsTarget $valVar) -}}
+        {{ template "readType" (ToReadParams .Context .Type.KeyType $keyTarget true) }}
+        {{ template "readType" (ToReadParams .Context .Type.ValueType $valTarget true) }}
+        {{ template "streamYieldIndexed" (Map "Index" $keyVar "Value" $valVar) }}
+    }
+    // --- [end][read][streaming-map]({{ .Type.Name }}) ---
+{{- end -}}
+
+{{/*
+    streamReadAlias handles the reading of alias types in a streaming fashion. If the alias is for a map or slice, we route to the 
+    appropriate streaming read method. If the alias is for a basic type or struct, we read the value and yield it as a single value in 
+    the stream.  
+
+    We need a special case for alias types in the event that we have an alias for map or slice, we need to stream it. Alias types add a 
+    single depth of indirection, so we just ensure that we can route to the correct streaming method for the underlying type. If the alias 
+    is for a basic type or struct, we can just read and yield as normal.
+ */}}
+{{- define "streamReadAlias" -}}
+    // --- [begin][read][streaming-alias]({{ .Type.Name }}) ---
+    {{/* types.MapType */ -}}
+    {{- if eq .Type.Alias.Code 14 -}}
+        {{ template "streamReadMap" (ToStreamParams .Context .Type.Alias) }}
+    {{/* types.SliceType */ -}}
+    {{- else if eq .Type.Alias.Code 15 -}}
+        {{ template "streamReadSlice" (ToStreamParams .Context .Type.Alias) }}
+    {{- else -}}
+        {{- $target := (AsTarget .Context.NextVar) -}}
+        {{ template "readType" (ToReadParams .Context .Type.Alias $target true) }}
+        {{ template "streamYieldSingle" (Map "Value" ($target.CastAs .Type.TypeName)) }}
+    {{- end }}
+    // --- [end][read][streaming-alias]({{ .Type.Name }}) ---
+{{- end -}}
+
+{{/*
+    streamSetDefault handles the setting of default values for fields that are tagged with a version that is greater than the version being unmarshalled. 
+    For nilable types, we can just yield a nil value to the stream. For non-nilable types, we need to determine the default value based on the annotations, or 
+    set it to the zero value for that type if no default is specified. 
+ */}}
+{{- define "streamSetDefault" -}}
+    {{- if .Type.IsNilable }}
+        {{ template "streamYieldNil" }}
+    {{- else }}
+        {{- $defaultValue := "" }}
+        {{- if .Opts }}
+            {{- $defaultValue = .Opts.Default }}
+        {{- end -}}
+
+        {{/* types.BasicType */ -}}
+        {{- if le .Type.Code 13 -}}
+            {{- $targetVar := .Context.NextVar -}}
+            var {{ $targetVar }} {{ .Type.TypeName }} = {{ ToDefaultValue .Type.Code $defaultValue }} // default 
+            {{ template "streamYieldSingle" (Map "Value" $targetVar) }}
+        {{- else -}}
+            {{- if ne $defaultValue "" -}}
+                {{- $targetVar := .Context.NextVar -}}
+                var {{ $targetVar }} {{ .Type.TypeName }} = {{ $defaultValue }} // default 
+                {{ template "streamYieldSingle" (Map "Value" $targetVar) }}
+            {{- end }}
+        {{- end }}
+    {{- end }}
+{{- end -}}
+
+{{/*
+    streamReadFullStruct handles the reading of a full struct in a streaming fashion, including field version checks and default value setting. For each field 
+    in the struct, we check if there is a version tag, and if so, we compare that to the version being unmarshalled. If the field version is less than or equal 
+    to the unmarshalling version, we read the field as normal. If the field version is greater than the unmarshalling version, we set the default value for that 
+    field.
+
+    The major addition for the streaming variant is the `BingenFieldInfo` struct that is created for each field, and yielded to the stream iterator along with the 
+    related value. This info is what allows the stream caller to determine which field is being read, what type, and handle appropriately.
+
+    The "full" implies that the type has been marked with a "generate" command annotation, and it is local to the current package. This is different than 
+    the "streamReadStruct" template which assumes that the binary unmarshaller has already been generated (or already exists) for the type.
+ */}}
+{{- define "streamReadFullStruct" -}}
+    {{- $context := .Context }}
+    {{- range .Type.Fields }}
+        {{- $fieldVersion := 0 }}
+        {{- if .Opts }}
+            {{- $fieldVersion = .Opts.Version }}
+        {{- end }}
+
+        fi = BingenFieldInfo{
+            Type: reflect.TypeFor[{{ .Type.Name }}](),
+            Name: "{{ .Name }}",
+        }
+
+        {{- if gt $fieldVersion 0 }}
+            // field version check
+            if uint8({{ $fieldVersion }}) <= version {
+                {{ template "streamReadType" (ToStreamParams $context .Type) }}
+            } else {
+                {{ template "streamSetDefault" (Map "Context" $context "Opts" .Opts "Type" .Type) }}
+            }
+        {{- else -}}
+            {{ template "streamReadType" (ToStreamParams $context .Type) }}
+        {{- end -}}
+    {{- end }}
+{{- end -}}
+
+{{/*
+    streamReadType handles the reading of a type in a streaming fashion, including nilable types. For nilable types, we first check if the value is nil by reading a 
+    uint8 from the buffer. If it is nil, we yield a nil value to the stream. Otherwise, we read the value as normal.
+ */}}
+{{- define "streamReadType" -}}
+    {{- if .Type.IsNilable }}
+        if buff.ReadUInt8() == uint8(0) {
+            {{ template "streamYieldNil" }}
+        } else {
+            {{ template "streamReadTypeRaw" . }}
+        }
+    {{ else }}
+        {{ template "streamReadTypeRaw" . }}
+    {{ end -}}
+{{- end -}}
+
+{{/*
+    streamReadTypeRaw handles the reading of the type without any nilable checks. We check the type code of the type, and 
+    route to the appropriate read method based on the type. For reference types, we first Resolve() the type to determine 
+    if we can resolve it to a known generated struct type, or if it references an externally defined type. 
+
+    The only difference between the streamReadTypeRaw and readTypeRaw is that the streamReadTypeRaw templates will route to 
+    the streaming read methods for maps, slices, and aliases. And instead of reading values and setting to fields, we yield 
+    values to the stream iterator.
+ */}}
+{{- define "streamReadTypeRaw" -}}
+    {{/* types.BasicType */ -}}
+    {{- if le .Type.Code 13 -}}
+        {{- $targetVar := .Context.NextVar }}
+        {{- $target := (AsTarget $targetVar) }}
+        {{ template "readPrimitive" (ToReadParams .Context .Type $target true) }}
+        {{ template "streamYieldSingle" (Map "Value" $targetVar) }}
+    {{/* types.MapType */ -}}
+    {{- else if eq .Type.Code 14 -}}
+        {{ template "streamReadMap" . }}
+    {{/* types.SliceType */ -}}
+    {{- else if eq .Type.Code 15 -}}
+        {{ template "streamReadSlice" . }}
+    {{/* types.InterfaceType */ -}}
+    {{- else if eq .Type.Code 16 -}}
+        {{- $targetVar := .Context.NextVar }}
+        {{- $target := (AsTarget $targetVar) }}
+        {{ template "readInterface" (ToReadParams .Context .Type $target true) }}
+        {{ template "streamYieldSingle" (Map "Value" $targetVar) }}
+    {{/* types.StructType */ -}}
+    {{- else if eq .Type.Code 17 -}}
+        {{- $targetVar := .Context.NextVar }}
+        {{- $target := (AsTarget $targetVar) }}
+        {{ template "readStruct" (ToReadParams .Context .Type $target true) }}
+        {{ template "streamYieldSingle" (Map "Value" $targetVar) }}
+    {{/* types.ReferenceType */ -}}
+    {{- else if eq .Type.Code 18 -}}
+        {{- $resolvedType := call .Type.Resolve }}
+        {{- if ne $resolvedType nil }} 
+            {{ template "streamReadTypeRaw" (ToStreamParams .Context $resolvedType) }}
+        {{- else }}
+            {{- $targetVar := .Context.NextVar }}
+            {{- $target := (AsTarget $targetVar) }}
+            {{ template "readReference" (ToReadParams .Context .Type $target true) }}
+            {{ template "streamYieldSingle" (Map "Value" $targetVar) }}
+        {{- end }}
+    {{/* types.AliasType */ -}}
+    {{- else if eq .Type.Code 19 -}}    
+        {{ template "streamReadAlias" . }}
+    {{- end -}}
+{{- end -}}
+
+
+//--------------------------------------------------------------------------
+//  {{ .Type.Name }}Stream 
+//--------------------------------------------------------------------------
+
+// {{ .Type.Name }}Stream is a single use field stream for the contents of an {{ .Type.Name }} instance. Instead of creating an instance and populating
+// the fields on that instance, we provide a streaming iterator which yields (BingenFieldInfo, *BingenValue) tuples for each
+// streamable element. All slices and maps will be flattened one depth and each element streamed individually.
+type {{ .Type.Name }}Stream struct {
+	reader io.Reader
+	ctx    *DecodingContext
+	err    error
+}
+
+// Closes closes the internal io.Reader used to read and parse the {{ .Type.Name }} fields.
+// This should be called once the stream is no longer needed.
+func (stream *{{ .Type.Name }}Stream) Close() {
+	if closer, ok := stream.reader.(io.Closer); ok {
+		closer.Close()
+	}
+	stream.ctx.Close() 
+}
+
+// Error returns an error if one occurred during the process of streaming the {{ .Type.Name }}
+// This can be checked after iterating through the Stream().
+func (stream *{{ .Type.Name }}Stream) Error() error {
+	return stream.err
+}
+
+// New{{ .Type.Name }}Stream creates a new {{ .Type.Name }}Stream, which uses the io.Reader data to stream all internal fields of an {{ .Type.Name }} instance
+func New{{ .Type.Name }}Stream(reader io.Reader) BingenStream {
+	ctx := NewDecodingContextFromReader(reader)
+
+	return &{{ .Type.Name }}Stream{
+		ctx: ctx,
+		reader: reader,
+	}
+}
+
+// Stream returns the iterator which will stream each field of the target type.
+func (stream *{{ .Type.Name }}Stream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] {
+    return func(yield func(BingenFieldInfo, *BingenValue) bool) {
+        var fi BingenFieldInfo
+
+        ctx := stream.ctx
+        buff := ctx.Buffer 
+        version := buff.ReadUInt8() 
+
+        if version > {{ .Context.VersionSetConst }} {
+            stream.err = fmt.Errorf("Invalid Version Unmarshalling {{ .Type.Name }}. Expected %d or less, got %d", {{ .Context.VersionSetConst }}, version)
+            return 
+        }
+
+        {{ template "streamReadFullStruct" . }}
+    }
+}
+

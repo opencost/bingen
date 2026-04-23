@@ -14,12 +14,12 @@ package container
 import (
 	"fmt"
 	"io"
-	"iter"
 	"os"
-	"reflect"
-	"strings"
 	"sync"
 	"unsafe"
+
+	"reflect"
+	"strings"
 
 	util "github.com/opencost/bingen/pkg/util"
 )
@@ -27,16 +27,11 @@ import (
 const (
 	// GeneratorPackageName is the package the generator is targetting
 	GeneratorPackageName string = "container"
-)
 
-// BinaryTags represent the formatting tag used for specific optimization features
-const (
 	// BinaryTagStringTable is written and/or read prior to the existence of a string
 	// table (where each index is encoded as a string entry in the resource
 	BinaryTagStringTable string = "BGST"
-)
 
-const (
 	// ContainerExampleCodecVersion is used for any resources listed in the ContainerExample version set
 	ContainerExampleCodecVersion uint8 = 1
 )
@@ -102,8 +97,7 @@ func BingenFileBackedStringTableDir() string {
 //  Type Map
 //--------------------------------------------------------------------------
 
-// Generated type map for resolving interface implementations to
-// to concrete types
+// Generated type map for resolving interface implementations to to concrete types
 var typeMap map[string]reflect.Type = map[string]reflect.Type{
 	"Container": reflect.TypeFor[Container](),
 }
@@ -182,77 +176,6 @@ func resolveType(t string) (pkg string, name string, isPtr bool) {
 	pkg = parts[0]
 	name = parts[1]
 	return
-}
-
-//--------------------------------------------------------------------------
-//  Stream Helpers
-//--------------------------------------------------------------------------
-
-// StreamFactoryFunc is an alias for a func that creates a BingenStream implementation.
-type StreamFactoryFunc func(io.Reader) BingenStream
-
-// Generated streamable factory map for finding the specific new stream methods
-// by T type
-var streamFactoryMap map[reflect.Type]StreamFactoryFunc = map[reflect.Type]StreamFactoryFunc{}
-
-// NewStreamFor accepts an io.Reader, and returns a new BingenStream for the generic T
-// type provided _if_ it is a registered bingen type that is annotated as 'streamable'. See
-// the streamFactoryMap for generated type listings.
-func NewStreamFor[T any](reader io.Reader) (BingenStream, error) {
-	typeKey := reflect.TypeFor[T]()
-
-	factory, ok := streamFactoryMap[typeKey]
-	if !ok {
-		return nil, fmt.Errorf("the type: %s is not a registered bingen streamable type", typeKey.Name())
-	}
-
-	return factory(reader), nil
-}
-
-// BingenStream is the stream interface for all streamable types
-type BingenStream interface {
-	// Stream returns the iterator which will stream each field of the target type and
-	// return the field info as well as the value.
-	Stream() iter.Seq2[BingenFieldInfo, *BingenValue]
-
-	// Close will close any dynamic io.Reader used to stream in the fields
-	Close()
-
-	// Error returns an error if one occurred during the process of streaming the type's fields.
-	// This can be checked after iterating through the Stream().
-	Error() error
-}
-
-// BingenValue contains the value of a field as well as any index/key associated with that value.
-type BingenValue struct {
-	Value any
-	Index any
-}
-
-// IsNil is just a method accessor way to check to see if the value returned was nil
-func (bv *BingenValue) IsNil() bool {
-	return bv == nil
-}
-
-// creates a single BingenValue instance without a key or index
-func singleV(value any) *BingenValue {
-	return &BingenValue{
-		Value: value,
-	}
-}
-
-// creates a pair of key/index and value.
-func pairV(index any, value any) *BingenValue {
-	return &BingenValue{
-		Value: value,
-		Index: index,
-	}
-}
-
-// BingenFieldInfo contains the type of the field being streamed as well as the name of the field.
-type BingenFieldInfo struct {
-	Type reflect.Type
-	Name string
 }
 
 //--------------------------------------------------------------------------
@@ -346,7 +269,7 @@ type StringTableReader interface {
 
 // SliceStringTableReader is a basic pre-loaded []string that provides index-based access.
 // The cost of this implementation is holding all strings in memory, which provides faster
-// lookup performance for memory usage.
+// lookup performance at the expense of memory usage.
 type SliceStringTableReader struct {
 	table []string
 }
@@ -649,9 +572,9 @@ func (target *Container) MarshalBinaryWithContext(ctx *EncodingContext) (err err
 			if e, ok := r.(error); ok {
 				err = e
 			} else if s, ok := r.(string); ok {
-				err = fmt.Errorf("Unexpected panic: %s", s)
+				err = fmt.Errorf("unexpected panic: %s", s)
 			} else {
-				err = fmt.Errorf("Unexpected panic: %+v", r)
+				err = fmt.Errorf("unexpected panic: %+v", r)
 			}
 		}
 	}()
@@ -665,25 +588,29 @@ func (target *Container) MarshalBinaryWithContext(ctx *EncodingContext) (err err
 	} else {
 		buff.WriteString(target.Name) // write string
 	}
+
 	if target.Children == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
 
 		// --- [begin][write][slice]([]string) ---
-		buff.WriteInt(len(target.Children)) // array length
-		for i := 0; i < len(target.Children); i++ {
+		buff.WriteInt(len(target.Children)) // slice length
+		for i := range target.Children {
 			if ctx.IsStringTable() {
 				b := ctx.Table.AddOrGet(target.Children[i])
 				buff.WriteInt(b) // write table index
 			} else {
 				buff.WriteString(target.Children[i]) // write string
 			}
+
 		}
 		// --- [end][write][slice]([]string) ---
 
 	}
+
 	buff.WriteFloat64(target.Value) // write float64
+
 	return nil
 }
 
@@ -692,6 +619,7 @@ func (target *Container) MarshalBinaryWithContext(ctx *EncodingContext) (err err
 func (target *Container) UnmarshalBinary(data []byte) error {
 	ctx := NewDecodingContextFromBytes(data)
 	defer ctx.Close()
+
 	err := target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
@@ -705,6 +633,7 @@ func (target *Container) UnmarshalBinary(data []byte) error {
 func (target *Container) UnmarshalBinaryFromReader(reader io.Reader) error {
 	ctx := NewDecodingContextFromReader(reader)
 	defer ctx.Close()
+
 	err := target.UnmarshalBinaryWithContext(ctx)
 	if err != nil {
 		return err
@@ -722,9 +651,9 @@ func (target *Container) UnmarshalBinaryWithContext(ctx *DecodingContext) (err e
 			if e, ok := r.(error); ok {
 				err = e
 			} else if s, ok := r.(string); ok {
-				err = fmt.Errorf("Unexpected panic: %s", s)
+				err = fmt.Errorf("unexpected panic: %s", s)
 			} else {
-				err = fmt.Errorf("Unexpected panic: %+v", r)
+				err = fmt.Errorf("unexpected panic: %+v", r)
 			}
 		}
 	}()
@@ -750,9 +679,9 @@ func (target *Container) UnmarshalBinaryWithContext(ctx *DecodingContext) (err e
 		target.Children = nil
 	} else {
 		// --- [begin][read][slice]([]string) ---
-		e := buff.ReadInt() // array len
+		e := buff.ReadInt() // slice len
 		d := make([]string, e)
-		for i := 0; i < e; i++ {
+		for i := range e {
 			var f string
 			var h string
 			if ctx.IsStringTable() {
@@ -770,6 +699,7 @@ func (target *Container) UnmarshalBinaryWithContext(ctx *DecodingContext) (err e
 		// --- [end][read][slice]([]string) ---
 
 	}
+
 	m := buff.ReadFloat64() // read float64
 	target.Value = m
 
