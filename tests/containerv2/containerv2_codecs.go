@@ -744,7 +744,7 @@ func (target *Container) UnmarshalBinaryWithContext(ctx *DecodingContext) (err e
 	version := buff.ReadUInt8()
 
 	if version > ContainerExampleCodecVersion {
-		return fmt.Errorf("Invalid Version Unmarshaling Container. Expected %d or less, got %d", ContainerExampleCodecVersion, version)
+		return fmt.Errorf("Invalid Version Unmarshalling Container. Expected %d or less, got %d", ContainerExampleCodecVersion, version)
 	}
 
 	var b string
@@ -924,7 +924,7 @@ func (stream *ContainerStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue]
 		}
 
 		fi = BingenFieldInfo{
-			Type: reflect.TypeFor[float64](),
+			Type: reflect.TypeFor[*float64](),
 			Name: "Value",
 		}
 		// field version check
