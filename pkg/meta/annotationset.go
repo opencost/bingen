@@ -3,6 +3,8 @@ package meta
 import (
 	"fmt"
 	"go/ast"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -15,6 +17,10 @@ import (
 type BingenAnnotated struct {
 	// Imports contains a list of any additional imports needed by the generated code.
 	Imports []string
+
+	// Definitions contains a slice of annotated type definitions that hint to the generator
+	// the existence of a type from another package.
+	Definitions []*TypeDefinition
 
 	// VersionSets contains a list of all version set definitions annotated for generation.
 	VersionSets []VersionSet
@@ -44,6 +50,38 @@ type VersionSet interface {
 }
 
 //--------------------------------------------------------------------------
+//  Type Definition
+//--------------------------------------------------------------------------
+
+// TypeDefinition contains a way to alias a type from another package to a built-in type
+// using the @bingen define command.
+type TypeDefinition struct {
+	// Package contains the fully qualified package path
+	Package string
+
+	// Name contains the name of the type definition.
+	Name string
+
+	// Type contains the type this definition aliases.
+	Type string
+}
+
+// PackageSelector returns the package name, used as a selector for the type definition.
+func (td *TypeDefinition) PackageSelector() string {
+	l := strings.LastIndex(td.Package, "/")
+	if l < 0 {
+		return td.Package
+	}
+
+	return td.Package[l+1:]
+}
+
+// FullName returns the <short-package>.<name>
+func (td *TypeDefinition) FullName() string {
+	return td.PackageSelector() + "." + td.Name
+}
+
+//--------------------------------------------------------------------------
 //  package types
 //--------------------------------------------------------------------------
 
@@ -69,6 +107,7 @@ type annotationCollector struct {
 	sets    map[string]*annotationSet
 	current *annotationSet
 	imports []string
+	defs    []*TypeDefinition
 }
 
 // newAnnotationsCollector creates a new annotation collector with ignore and generate commands
@@ -78,6 +117,7 @@ func newAnnotationsCollector() *annotationCollector {
 		sets:    map[string]*annotationSet{},
 		current: nil,
 		imports: []string{},
+		defs:    []*TypeDefinition{},
 	}
 }
 
@@ -133,7 +173,23 @@ func (ac *annotationCollector) Collect(file *ast.File) error {
 				switch a.Command {
 				// AnnotationImport (@bingen:import)
 				case AnnotationImport:
-					ac.imports = append(ac.imports, a.Target)
+					if !slices.Contains(ac.imports, a.Target) {
+						ac.imports = append(ac.imports, a.Target)
+					}
+
+				// AnnotationDefine (@bingen define)
+				case AnnotationDefine:
+					def, err := toTypeDefinition(a)
+					if err != nil {
+						return err
+					}
+
+					// auto-import the package if it wasn't already imported
+					if !slices.Contains(ac.imports, def.Package) {
+						ac.imports = append(ac.imports, def.Package)
+					}
+
+					ac.defs = append(ac.defs, def)
 
 				// AnnotationSet (@bingen:set)
 				case AnnotationSet:
@@ -177,6 +233,30 @@ func (ac *annotationCollector) Collect(file *ast.File) error {
 	}
 
 	return nil
+}
+
+// toTypeDefinition will parse the @bingen define command to build an external type definition
+// from outside the current package
+func toTypeDefinition(a *Annotation) (*TypeDefinition, error) {
+	typePath := a.Target
+	lastDot := strings.LastIndex(typePath, ".")
+	if lastDot == -1 {
+		return nil, fmt.Errorf("failed to parse package and type from define target: %s", typePath)
+	}
+
+	pkg := typePath[:lastDot]
+	typeName := typePath[lastDot+1:]
+
+	options := slices.Collect(maps.Keys(a.Options))
+	if len(options) != 1 {
+		return nil, fmt.Errorf("exactly one alias type option is required define annotation - found: %d", len(options))
+	}
+
+	return &TypeDefinition{
+		Package: pkg,
+		Name:    typeName,
+		Type:    options[0],
+	}, nil
 }
 
 // nameVersionFor finds the name and version from the annotation options.
@@ -238,13 +318,15 @@ func LoadAnnotations(packages map[string]*ast.Package, defaultVersion uint8) (*B
 		sets = append(sets, v)
 	}
 
-	imports := []string{}
-	for _, im := range ac.imports {
-		imports = append(imports, im)
-	}
+	imports := make([]string, len(ac.imports))
+	copy(imports, ac.imports)
+
+	defs := make([]*TypeDefinition, len(ac.defs))
+	copy(defs, ac.defs)
 
 	return &BingenAnnotated{
 		Imports:     imports,
+		Definitions: defs,
 		VersionSets: sets,
 	}, nil
 }

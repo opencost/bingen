@@ -13,6 +13,11 @@ func (t Target) Deref() Target {
 	return "*" + t
 }
 
+// Ref returns a reference to the target.
+func (t Target) Ref() Target {
+	return "&" + t
+}
+
 // CastAs returns the target casted as a specific type.
 func (t Target) CastAs(typeName string) Target {
 	return Target(fmt.Sprintf("%s(%s)", typeName, t))

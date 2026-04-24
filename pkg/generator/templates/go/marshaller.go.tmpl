@@ -1,0 +1,323 @@
+{{/*
+	writePrimitive handles writing of primitive types to the buffer. It checks if the type is a pointer and dereferences 
+	it if necessary before writing the value using the appropriate buffer method based on the type code. 
+ */}}
+{{- define "writePrimitive" -}}
+	{{- $newTarget := .Target -}}
+	{{- if .Type.IsPtr -}}
+		{{-  $newTarget = .Target.Deref -}}
+	{{- end -}}
+
+	{{/* types.TypeBool */ -}}
+	{{- if eq .Type.Code 0 -}}
+		buff.WriteBool({{ $newTarget }}) // write bool
+	{{/* types.TypeInt */ -}}
+	{{- else if eq .Type.Code 1 -}} 
+		buff.WriteInt({{ $newTarget }}) // write int
+	{{/* types.TypeInt8 */ -}}
+	{{- else if eq .Type.Code 2 -}} 
+		buff.WriteInt8({{ $newTarget }}) // write int8
+	{{/* types.TypeInt16 */ -}}
+	{{- else if eq .Type.Code 3 -}} 
+		buff.WriteInt16({{ $newTarget }}) // write int16
+	{{/* types.TypeInt32 */ -}}
+	{{- else if eq .Type.Code 4 -}} 
+		buff.WriteInt32({{ $newTarget }}) // write int32
+	{{/* types.TypeInt64 */ -}}
+	{{- else if eq .Type.Code 5 -}} 
+		buff.WriteInt64({{ $newTarget }}) // write int64
+	{{/* types.TypeUInt */ -}}
+	{{- else if eq .Type.Code 6 -}} 
+		buff.WriteUInt({{ $newTarget }}) // write uint
+	{{/* types.TypeUInt8 */ -}}
+	{{- else if eq .Type.Code 7 -}} 
+		buff.WriteUInt8({{ $newTarget }}) // write uint8
+	{{/* types.TypeUInt16 */ -}}
+	{{- else if eq .Type.Code 8 -}} 
+		buff.WriteUInt16({{ $newTarget }}) // write uint16
+	{{/* types.TypeUInt32 */ -}}
+	{{- else if eq .Type.Code 9 -}} 
+		buff.WriteUInt32({{ $newTarget }}) // write uint32
+	{{/* types.TypeUInt64 */ -}}
+	{{- else if eq .Type.Code 10 -}} 
+		buff.WriteUInt64({{ $newTarget }}) // write uint64
+	{{/* types.TypeFloat32 */ -}}
+	{{- else if eq .Type.Code 11 -}} 
+		buff.WriteFloat32({{ $newTarget }}) // write float32
+	{{/* types.TypeFloat64 */ -}}
+	{{- else if eq .Type.Code 12 -}} 
+		buff.WriteFloat64({{ $newTarget }}) // write float64
+	{{/* types.TypeString */ -}}
+	{{- else if eq .Type.Code 13 -}} 
+		{{- $tableIndexVar := .Context.NextVar -}}
+		if ctx.IsStringTable() {
+			{{ $tableIndexVar }} := ctx.Table.AddOrGet({{ $newTarget }})
+			buff.WriteInt({{ $tableIndexVar }}) // write table index
+		} else {
+			buff.WriteString({{ $newTarget }})	// write string 
+		}
+	{{- end -}}
+{{- end -}}
+
+{{/*
+	writeSlice handles the writing of slice types. It first writes the length of the slice to the buffer, and then iterates 
+	and writes each element of the slice using the appropriate method based on the element type. The loop variable is generated 
+	using the context to ensure uniqueness.
+ */}}
+{{- define "writeSlice" -}} 
+	// --- [begin][write][slice]({{ .Type.TypeName }}) ---
+	{{ $loopVar := .Context.NextLoopVar -}}
+	buff.WriteInt(len({{ .Target }})) // slice length
+	for {{ $loopVar }} := range {{ .Target }} {
+		{{- $elementTarget := NewIndexedTarget .Target $loopVar -}}
+		{{ template "writeType" (ToWriteParams .Context .Type.InnerType $elementTarget) }}
+	}
+	// --- [end][write][slice]({{ .Type.TypeName }}) ---
+{{- end -}}
+
+{{/*
+	writeMap handles the writing of map types. It first writes the length of the map to the buffer, and then iterates over
+	the map using a range loop. For each key-value pair, it writes the key and value to the buffer using the appropriate method 
+	based on their types. The key and value variables are generated using the context to ensure uniqueness.
+ */}}
+{{- define "writeMap" -}}
+	// --- [begin][write][map]({{ .Type.TypeName }}) ---
+	{{ $keyVar := .Context.NextMapVar -}}
+	{{ $valVar := .Context.NextMapVar -}}
+	buff.WriteInt(len({{ .Target }})) // map length
+	for {{ $keyVar }}, {{ $valVar }} := range {{ .Target }} {
+		{{- template "writeType" (ToWriteParams .Context .Type.KeyType (AsTarget $keyVar)) }}
+		{{- template "writeType" (ToWriteParams .Context .Type.ValueType (AsTarget $valVar)) }}
+	}
+	// --- [end][write][map]({{ .Type.TypeName }}) ---
+{{- end -}}
+
+{{/*
+	writeStruct handles the writing of struct types. It assumes that the struct type implements the BinEncoder interface, which requires 
+	a MarshalBinaryWithContext method. This leverages the current generate context to call the MarshalBinaryWithContext method of the struct 
+	to write its internal properties to the buffer. If there is an error during marshaling, it returns the error.
+
+	Note that this method is called when the struct type is known, or marked by the generator as a type that will have it's full struct generated. 
+ */}}
+{{- define "writeStruct" -}}
+	// --- [begin][write][struct]({{ .Type.Name }}) ---
+	{{ $errVar := .Context.NextErrVar -}}
+	buff.WriteInt(0) // [compatibility, unused]
+	{{ $errVar }} := {{ .Target }}.MarshalBinaryWithContext(ctx)
+	if {{ $errVar }} != nil {
+		return {{ $errVar }}
+	}
+	// --- [end][write][struct]({{ .Type.Name }}) ---
+{{- end -}}
+
+{{/*
+	writeReference handles the writing of "reference" types. In this context, a reference type is a type that does not have generated definition, or
+	is considered to be an externally defined type. For such types, we require that they implement the MarshalBinary() method in order to be encoded 
+	as part of our binary format. 
+
+	We create two new variables, one for storing the byte array returned by the MarshalBinary() method, and another for storing any error that may 
+	occur during marshaling. On an error, we return the error immediately. If marshaling is successful, we write the length of the resulting byte array 
+	to the buffer, followed by the byte array itself.
+ */}}
+{{- define "writeReference" -}}
+	// --- [begin][write][reference]({{ .Type.Name }}) ---
+	{{ $nvar := .Context.NextVar -}}
+	{{ $errVar := .Context.NextErrVar -}}
+	{{ $nvar }}, {{ $errVar }} := {{ .Target }}.MarshalBinary()
+	if {{ $errVar }} != nil {
+		return {{ $errVar }}
+	}
+	buff.WriteInt(len({{ $nvar }}))
+	buff.WriteBytes({{ $nvar }})
+	// --- [end][write][reference]({{ .Type.Name }}) ---
+{{- end -}}
+
+{{/*
+	writeInterface handles the writing of interface types. It requires that the underlying type of the interface implements the BinEncoder interface, 
+	and therefore, marked as a generated bingen type. In order to be able to recreate the underlying concrete type during unmarshalling, we write 
+	the type name as a string, followed by a compatibility byte, followed by the marshalled binary data of the underlying concrete type. 
+
+	An error is returned if the concrete type does not implement the BinEncoder interface, or if there is an error during marshaling.
+ */}}
+{{- define "writeInterface" -}} 
+	// --- [begin][write][interface]({{ .Type.Name }}) ---
+	{{ $interfaceVar := .Context.NextVar -}}
+	{{ $binaryMarshalerVar := .Context.NextVar -}}
+	{{ $interfaceOKVar := .Context.NextOKVar -}}
+	{{ $errVar := .Context.NextErrVar -}}
+
+	{{ $interfaceVar }} := reflect.ValueOf({{ .Target }}).Interface()
+	{{ $binaryMarshalerVar }}, {{ $interfaceOKVar }} := {{ $interfaceVar }}.(BinEncoder)
+	if !{{ $interfaceOKVar }} {
+		return fmt.Errorf("type: %s does not implement %s.BinEncoder", typeToString({{ .Target }}), GeneratorPackageName)
+	}
+	buff.WriteString(typeToString({{ .Target }}))
+	buff.WriteInt(0) // [compatibility, unused]
+
+	{{ $errVar }} := {{ $binaryMarshalerVar }}.MarshalBinaryWithContext(ctx)
+	if {{ $errVar }} != nil {
+		return {{ $errVar }}
+	}
+	// --- [end][write][interface]({{ .Type.Name }}) ---
+{{- end -}}
+
+{{/*
+	writeAlias handles the writing of alias types marked as generated by bingen. If an alias is defined externally, it will be treated as 
+	a referenced type (required to implement MarshalBinary). If the alias is defined internally, we can simple reroute the writing to the aliased
+	type. In order to keep the alias typed correctly throughout use, a new target is created by casting the original target to the alias type.
+ */}}
+{{- define "writeAlias" -}}
+	// --- [begin][write][alias]({{ .Type.Name }}) ---
+	{{- /* 
+		pointer types need to be disambiguated for the go parser: ie: ((*TypePtr)(var))
+		because the following would be illegal syntax: *TypePtr(var) -> treated as *(TypePtr(var))
+		which is incorrect
+	*/ -}}
+	{{- if .Type.Alias.IsPtr }}
+		{{- $innerTarget := .Target }}
+		{{- if .Type.IsPtr }}
+			{{- $innerTarget = $innerTarget.Deref }}
+		{{- end }}
+		{{- $aliasTarget := NewTypeCastedTarget .Type.Alias.TypeName $innerTarget }}
+		{{ template "writeType" (ToWriteParams .Context .Type.Alias $aliasTarget) }}
+	{{- else }}
+		{{- $innerTarget := .Target }}
+		{{- if .Type.IsPtr }}
+			{{- $innerTarget = $innerTarget.Deref }}
+		{{- end }}
+		{{- $aliasTarget := NewCastedTarget .Type.Alias.TypeName $innerTarget }}
+		{{ template "writeType" (ToWriteParams .Context .Type.Alias $aliasTarget) }}
+	{{- end }}
+	// --- [end][write][alias]({{ .Type.Name }}) ---
+{{- end -}}
+
+{{/*
+	writeFullStruct handles the writing of a full struct type. The "full" implies that the type has been marked with a 
+	"generate" command annotation, and it is local to the current package. This is different than the "writeStruct" 
+	template which assumes that the binary marshaller has already been generated (or already exists) for the type.  
+	
+	For writing the full struct, we iterate over and write each field of the struct using the appropriate method based on 
+	its type.	
+ */}}
+{{- define "writeFullStruct" -}}
+	{{- if .Context.IsPreProcess }}
+		// execute pre-processing func
+		preProcess{{ .Type.Name }}(target)
+	{{- end }}
+
+	{{- $context := .Context }}
+	{{- range .Type.Fields }}
+		{{- $target := NewFieldTarget "target" .Name }}
+		{{ template "writeType" (ToWriteParams $context .Type $target) -}}
+	{{- end }}
+{{- end -}}
+
+{{/*
+	writeType is the main entry point for writing any type. Nilable types can be written as a single 0 byte if the value is nil. Otherwise, we 
+	write a 1 byte followed by the encoding format for the type (denoted the "rawType"). If the type is non-nilable, we can just write the raw type 
+	encoding directly. 
+ */}}
+{{- define "writeType" -}} 
+	{{- if .Type.IsNilable -}} 
+		if {{ .Target }} == nil {
+			buff.WriteUInt8(uint8(0)) // write nil byte
+		} else {
+			buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+			{{ template "writeTypeRaw" . }}
+		}
+	{{- else }}
+		{{ template "writeTypeRaw" . }}
+	{{- end -}} 
+{{- end -}}
+
+{{/*
+	writeTypeRaw handles the writing of the type without any nilable checks. We check the type code of the type, and 
+	route to the appropriate write method based on the type. For reference types, we first Resolve() the type to determine 
+	if we can resolve it to a known generated struct type, or if it references an externally defined type. 
+ */}}
+{{- define "writeTypeRaw" -}}
+	{{/* types.BasicType */ -}}
+	{{- if le .Type.Code 13 -}}				
+		{{ template "writePrimitive" . }}
+	{{/* types.MapType */ -}}
+	{{- else if eq .Type.Code 14 -}}
+		{{ template "writeMap" . }}
+	{{/* types.SliceType */ -}}
+	{{- else if eq .Type.Code 15 -}}	
+		{{ template "writeSlice" . }}
+	{{/* types.InterfaceType */ -}}
+	{{- else if eq .Type.Code 16 -}}	
+		{{ template "writeInterface" . }}
+	{{/* types.StructType */ -}}
+	{{- else if eq .Type.Code 17 -}}	
+		{{ template "writeStruct" . }}
+	{{/* types.ReferenceType */ -}}
+	{{- else if eq .Type.Code 18 -}}
+		{{- $resolvedType := call .Type.Resolve }}
+		{{- if ne $resolvedType nil }} 
+			{{ template "writeTypeRaw" (ToWriteParams .Context $resolvedType .Target) }}
+		{{- else }}
+			{{ template "writeReference" . }}
+		{{- end }}
+	{{/* types.AliasType */ -}}
+	{{- else if eq .Type.Code 19 -}}	
+		{{ template "writeAlias" . }}
+	{{- end -}}
+{{- end -}}
+
+//--------------------------------------------------------------------------
+//  {{ .Type.Name }}
+//--------------------------------------------------------------------------
+
+// MarshalBinary serializes the internal properties of this {{ .Type.Name }} instance
+// into a byte array
+func (target *{{ .Type.Name }}) MarshalBinary() (data []byte, err error) {
+	ctx := &EncodingContext{
+		Buffer: util.NewBuffer(),
+{{- if .Context.IsStringTable }}
+		Table: NewStringTableWriter(),
+{{- else }}
+		Table: nil,
+{{- end }}
+	}
+
+	e := target.MarshalBinaryWithContext(ctx)
+	if e != nil {
+		return nil, e
+	}
+
+	encBytes := ctx.Buffer.Bytes() 
+{{- if .Context.IsStringTable }}
+	sTableBytes := ctx.Table.ToBytes()
+	merged := appendBytes(sTableBytes, encBytes)
+	return merged, nil 
+{{- else }}
+	return encBytes, nil
+{{- end }}
+}
+
+// MarshalBinaryWithContext serializes the internal properties of this {{ .Type.Name }} instance
+// into a byte array leveraging a predefined context.
+func (target *{{ .Type.Name }}) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+	    if r := recover(); r != nil {
+	        if e, ok := r.(error); ok {
+	            err = e
+	        } else if s, ok := r.(string); ok {
+	            err = fmt.Errorf("unexpected panic: %s", s)
+	        } else {
+	            err = fmt.Errorf("unexpected panic: %+v", r)
+	        }
+	    }
+	}()
+
+	buff := ctx.Buffer 
+	buff.WriteUInt8({{ .Context.VersionSetConst }}) // version
+
+	{{ template "writeFullStruct" . }}
+
+	return nil 
+}
+

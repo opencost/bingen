@@ -1,0 +1,413 @@
+{{/* 
+    SetOpFor is a helper template that returns whether or not to use a declaration operator (:=) or an assignment operator (=) when setting a variable. 
+    This is used in the unmarshaller when we need to conditionally declare a new variable for a field external to the read call.
+ */}}
+{{- define "SetOpFor" -}}
+    {{ if . }}:={{ else }}={{ end }}
+{{- end -}}
+
+{{/*
+    readPrimitive handles the reading of primitive (or built-in) go types, which are defined as any type with a type code less than or equal to 13. 
+    The supported primitive types include bool, int variants, uint variants, float variants, and string. for pointer types, we read the value into a non-pointer, 
+    and then take the address of that new variable. 
+ */}}
+{{- define "readPrimitive" -}}
+    {{- $varName := .Context.NextVar }}
+    {{- $resultVar := $varName }}
+    {{- if .Type.IsPtr }}
+        {{- $resultVar = printf "&%s" $resultVar -}}
+    {{- end -}}
+
+    {{- if .Set -}}
+        var {{ .Target }} {{ .Type.TypeName }}
+    {{- end }}
+    {{/* types.TypeBool */ -}}
+    {{- if eq .Type.Code 0 -}}
+        {{ $varName }} := buff.ReadBool() // read bool 
+    {{/* types.TypeInt */ -}}
+    {{- else if eq .Type.Code 1 -}} 
+        {{ $varName }} := buff.ReadInt() // read int
+    {{/* types.TypeInt8 */ -}}
+    {{- else if eq .Type.Code 2 -}} 
+        {{ $varName }} := buff.ReadInt8() // read int8
+    {{/* types.TypeInt16 */ -}}
+    {{- else if eq .Type.Code 3 -}} 
+        {{ $varName }} := buff.ReadInt16() // read int16
+    {{/* types.TypeInt32 */ -}}
+    {{- else if eq .Type.Code 4 -}} 
+        {{ $varName }} := buff.ReadInt32() // read int32
+    {{/* types.TypeInt64 */ -}}
+    {{- else if eq .Type.Code 5 -}} 
+        {{ $varName }} := buff.ReadInt64() // read int64
+    {{/* types.TypeUInt */ -}}
+    {{- else if eq .Type.Code 6 -}} 
+        {{ $varName }} := buff.ReadUInt() // read uint
+    {{/* types.TypeUInt8 */ -}}
+    {{- else if eq .Type.Code 7 -}} 
+        {{ $varName }} := buff.ReadUInt8() // read uint8
+    {{/* types.TypeUInt16 */ -}}
+    {{- else if eq .Type.Code 8 -}} 
+        {{ $varName }} := buff.ReadUInt16() // read uint16
+    {{/* types.TypeUInt32 */ -}}
+    {{- else if eq .Type.Code 9 -}} 
+        {{ $varName }} := buff.ReadUInt32() // read uint32
+    {{/* types.TypeUInt64 */ -}}
+    {{- else if eq .Type.Code 10 -}} 
+        {{ $varName }} := buff.ReadUInt64() // read uint64
+    {{/* types.TypeFloat32 */ -}}
+    {{- else if eq .Type.Code 11 -}} 
+        {{ $varName }} := buff.ReadFloat32() // read float32
+    {{/* types.TypeFloat64 */ -}}
+    {{- else if eq .Type.Code 12 -}} 
+        {{ $varName }} := buff.ReadFloat64() // read float64
+    {{/* types.TypeString */ -}}
+    {{- else if eq .Type.Code 13 -}} 
+        {{ $tempVar := .Context.NextVar }}
+        {{- $tableIndexVar := .Context.NextVar -}}
+
+        var {{ $tempVar }} string
+        if ctx.IsStringTable() {
+            {{ $tableIndexVar }} := buff.ReadInt() // read string index 
+            {{ $tempVar }} = ctx.Table.At({{ $tableIndexVar }})
+        } else {
+            {{ $tempVar }} = buff.ReadString() // read string 
+        }
+        {{ $varName }} := {{ $tempVar }}
+    {{ end -}}
+    {{ .Target }} = {{ $resultVar }}
+{{- end -}}
+
+{{/* 
+    readSlice handles the reading of slice types. It first reads the length of the slice, then iterates over the length to 
+    read each element deterministically based on the inner type of the slice.
+ */}}
+{{- define "readSlice" -}}
+    // --- [begin][read][slice]({{ .Type.Name }}) ---
+    {{ $sliceVar := .Context.NextVar }}
+    {{- $lenVar := .Context.NextVar }}
+    {{- $loopVar := .Context.NextLoopVar }}
+    {{- $innerVar := .Context.NextVar -}}
+
+    {{ $lenVar }} := buff.ReadInt() // slice len 
+    {{ $sliceVar }} := make({{ .Type.Name }}, {{ $lenVar }})
+    for {{ $loopVar }} := range {{ $lenVar }} {
+        {{- $innerTarget := AsTarget $innerVar -}}
+        {{ template "readType" (ToReadParams .Context .Type.InnerType $innerTarget true) }}
+        {{ $sliceVar }}[{{ $loopVar }}] = {{ $innerVar }}
+    }
+    {{ .Target }} {{ template "SetOpFor" .Set }} {{ $sliceVar }}
+    // --- [end][read][slice]({{ .Type.Name }}) ---
+{{- end -}}
+
+{{/* 
+    readMap handles the reading of map types. It first reads the length of the map, then iterates over the length to 
+    deterministically read each key-value pair based on the key type and value types of the map. 
+ */}}
+{{- define "readMap" -}}
+    // --- [begin][read][map]({{ .Type.Name }}) ---
+    {{ $mapVar := .Context.NextVar }}
+    {{- $lenVar := .Context.NextVar }}
+    {{- $keyVar := .Context.NextMapVar }}
+    {{- $valVar := .Context.NextMapVar -}}
+
+    {{ $lenVar }} := buff.ReadInt() // map len 
+    {{ $mapVar }} := make(map[{{ .Type.KeyType.TypeName }}]{{ .Type.ValueType.TypeName }}, {{ $lenVar }})
+    for range {{ $lenVar }} {
+        {{- $keyTarget := AsTarget $keyVar -}}
+        {{- $valTarget := AsTarget $valVar -}}
+        {{ template "readType" (ToReadParams .Context .Type.KeyType $keyTarget true) -}}
+        {{ template "readType" (ToReadParams .Context .Type.ValueType $valTarget true) -}}
+        {{ $mapVar }}[{{ $keyVar }}] = {{ $valVar }}
+    }
+    {{ .Target }} {{template "SetOpFor" .Set }} {{ $mapVar }}
+    // --- [end][read][map]({{ .Type.Name }}) ---
+{{- end -}}
+
+{{/*
+    readStruct handles the reading of struct types. It creates a new variable of the struct type, then leverages the current generator 
+    context to call the UnmarshalBinaryWithContext method on that variable to read in the fields.
+
+    One nuance with reading/unmarshalling types is that the error code generation is handled by the context via `HandleError`. This is 
+    because we using a completely different error handling strategy for streaming unmarshalling, and since we re-use read methods 
+    defined here, our context will dictate how errors are handled. 
+ */}}
+{{- define "readStruct" -}}
+    // --- [begin][read][struct]({{ .Type.Name }}) ---
+    {{ $ubVar := .Context.NextVar }} 
+    {{- $errVar := .Context.NextErrVar -}}
+
+    {{ $ubVar }} := new({{ .Type.Name }})
+    buff.ReadInt() // [compatibility, unused]
+    {{ $errVar }} := {{ $ubVar }}.UnmarshalBinaryWithContext(ctx)
+    if {{ $errVar }} != nil {
+        {{ .Context.HandleError $errVar }}
+    }
+    {{- if .Type.IsPtr }}
+        {{ .Target }} {{ template "SetOpFor" .Set }} {{ $ubVar }}
+    {{- else }}
+        {{ .Target }} {{ template "SetOpFor" .Set }} *{{ $ubVar }}
+    {{- end }}
+    // --- [end][read][struct]({{ .Type.Name }}) ---
+{{- end -}}
+
+{{/*
+    readReference handles the reading of reference types. A reference type is a type that does not have a generated definition, or 
+    is considered to be an externally defined type.
+ */}}
+{{- define "readReference" -}}
+    // --- [begin][read][reference]({{ .Type.Name }}) ---
+    {{ $ubVar := .Context.NextVar }}
+    {{- $blVar := .Context.NextVar }}
+    {{- $baVar := .Context.NextVar }}
+    {{- $errVar := .Context.NextErrVar -}}
+
+    {{ $ubVar }} := new({{ .Type.Name }})
+    {{ $blVar }} := buff.ReadInt() // byte array length 
+    {{ $baVar }} := buff.ReadBytes({{ $blVar }})
+    {{ $errVar }} := {{ $ubVar }}.UnmarshalBinary({{ $baVar }})
+    if {{ $errVar }} != nil {
+        {{ .Context.HandleError $errVar }}
+    }
+    {{ if .Type.IsPtr -}}
+        {{ .Target }} {{ template "SetOpFor" .Set }} {{ $ubVar }}
+    {{ else -}} 
+        {{ .Target }} {{ template "SetOpFor" .Set }} *{{ $ubVar }}
+    {{ end -}}
+    // --- [end][read][reference]({{ .Type.Name }}) ---
+{{- end -}}
+
+{{/* 
+    readInterface handles the reading of interface types. It requires that the underlying type be a generated type with a known type name. 
+    This is because the format reads a type name string during unmarshalling. Once the concrete type is determined, we can use that specific
+    type's UnmarshalBinaryWithContext method to read in the data. 
+ */}}
+{{- define "readInterface" -}}
+    // --- [begin][read][interface]({{ .Type.Name }}) ---
+    {{ $tNameVar := .Context.NextVar }}
+    {{- $nameVar := .Context.NextVar }}
+    {{- $interfaceOKVar := .Context.NextOKVar }}
+    {{- $ubVar := .Context.NextVar }}
+    {{- $errVar := .Context.NextErrVar -}}
+    {{ $tNameVar }} := buff.ReadString() 
+    _, {{ $nameVar }}, _ := resolveType({{ $tNameVar }})
+    if _, ok := typeMap[{{ $nameVar }}]; !ok {
+        {{ .Context.HandleError (printf "fmt.Errorf(\"Unknown Type: %%s\", %s)" $nameVar) }}
+    }
+
+    {{ $ubVar }}, {{ $interfaceOKVar }} := reflect.New(typeMap[{{ $nameVar }}]).Interface().(BinDecoder)
+    if !{{ $interfaceOKVar }} {
+        {{ .Context.HandleError (printf "fmt.Errorf(\"Type: %%s does not implement %%s.BinDecoder.\", %s, GeneratorPackageName)" $nameVar) }}
+    }
+
+    buff.ReadInt() // [compatibility, unused]
+    {{ $errVar }} := {{ $ubVar }}.UnmarshalBinaryWithContext(ctx)
+    if {{ $errVar }} != nil {
+        {{ .Context.HandleError $errVar }}
+    }
+    {{ .Target }} {{ template "SetOpFor" .Set }} {{ $ubVar }}.({{ .Type.Name }})
+    // --- [end][read][interface]({{ .Type.Name }}) ---
+{{- end -}}
+
+{{/*
+    readAlias handles the reading of alias types marked as generated by bingen. If an alias is defined externally, it will be treated as 
+    a referenced type (required to implement UnmarshalBinary). If the alias is defined internally, we can simply reroute the reading to the aliased
+    type. In order to keep the alias typed correctly throughout use, a new target is created by casting the original target to the alias type.
+ */}}
+{{- define "readAlias" -}}
+    // --- [begin][read][alias]({{ .Type.Name }}) ---
+    {{- $varName := .Context.NextVar -}}
+    {{- $varTarget := (AsTarget $varName) -}}
+
+    {{ template "readType" (ToReadParams .Context .Type.Alias $varTarget true) }}
+    {{- if .Type.IsPtr }}
+        {{- $tempVar := .Context.NextVar -}}
+        {{ $tempVar }} := {{ .Type.Name }}({{ $varName }})
+        {{ .Target }} {{ template "SetOpFor" .Set }} &{{ $tempVar }}
+    {{- else }}
+        {{ .Target }} {{ template "SetOpFor" .Set }} {{ .Type.Name }}({{ $varName }})
+    {{- end }}
+    // --- [end][read][alias]({{ .Type.Name }}) ---
+{{- end -}}
+
+{{/* 
+    For fields that are tagged with a version that is greater than the version being unmarshalled, we need to set a default value. This template 
+    handles the logic for determining if the default value can be read from the annotations, or if it should just be set to the zero value for that type. 
+ */}}
+{{- define "readSetDefault" -}}
+    {{- if .Type.IsNilable }}
+        {{ .Target }} = nil 
+    {{- else }}
+        {{- $defaultValue := "" }}
+        {{- if .Opts }}
+            {{- $defaultValue = .Opts.Default }}
+        {{- end -}}
+
+        {{/* types.BasicType */ -}}
+        {{- if le .Type.Code 13 -}}
+            {{ .Target }} = {{ ToDefaultValue .Type.Code $defaultValue }} // default 
+        {{- else -}}
+            {{- if ne $defaultValue "" -}}
+                {{ .Target }} = {{ $defaultValue }} // default 
+            {{- end }}
+        {{- end }}
+    {{- end }}
+{{- end -}}
+
+{{/*
+    readFullStruct handles the reading of a full struct, including field version checks and default value setting. For each field in the struct, 
+    we check if there is a version tag, and if so, we compare that to the version being unmarshalled. If the field version is less than or equal to the 
+    unmarshalling version, we read the field as normal. If the field version is greater than the unmarshalling version, we set the default value for that field.
+
+    The "full" implies that the type has been marked with a "generate" command annotation, and it is local to the current package. This is different than 
+    the "readStruct" template which assumes that the binary unmarshaller has already been generated (or already exists) for the type.  
+ */}}
+{{- define "readFullStruct" -}}
+    {{- $context := .Context }}
+    {{- range .Type.Fields }}
+        {{- $fieldVersion := 0 }}
+        {{- if .Opts }}
+            {{- $fieldVersion = .Opts.Version }}
+        {{- end }}
+
+        {{- $fieldTarget := NewFieldTarget "target" .Name -}}
+        {{- if gt $fieldVersion 0 }}
+            // field version check
+            if uint8({{ $fieldVersion }}) <= version {
+                {{- template "readType" (ToReadParams $context .Type $fieldTarget false) }}
+            } else {
+                {{- template "readSetDefault" (Map "Context" $context "Opts" .Opts "Type" .Type "Target" $fieldTarget) }}
+            }
+        {{- else -}}
+            {{- template "readType" (ToReadParams $context .Type $fieldTarget false) }}
+        {{- end -}}
+    {{- end }}
+
+    {{ if .Context.IsMigration -}}
+        // execute migration func if version delta detected
+        if version != {{ .Context.VersionSetConst }} {
+            migrate{{ .Type.Name }}(target, version, {{ .Context.VersionSetConst }})
+        }
+    {{- end }}
+
+    {{ if .Context.IsPostProcess -}}
+        // execute post-processing func
+        postProcess{{ .Type.Name }}(target)
+    {{- end }}
+{{- end -}}
+
+{{/* 
+    readType is the main entry point for reading any type. Nilable types can be read by first reading a single byte to determine 
+    if the value is nil (0) or non-nil (1). If the value is non-nil, we read the value based on the type's encoding format (denoted as "rawType"). 
+    If the type is non-nilable, we can just read the raw type directly.
+ */}}
+{{- define "readType" -}}
+    {{- $setVar := .Set }}
+    {{- if .Type.IsNilable }}
+        {{- if .Set }}
+            var {{ .Target }} {{ .Type.TypeName }}
+            {{- $setVar = false -}}
+        {{- end }}
+        if buff.ReadUInt8() == uint8(0) {
+            {{ .Target }} = nil
+        } else {
+            {{ template "readTypeRaw" (ToReadParams .Context .Type .Target $setVar) }}
+        }
+    {{ else }}
+        {{ template "readTypeRaw" (ToReadParams .Context .Type .Target $setVar) }}
+    {{ end -}}
+{{- end -}}
+
+{{/*
+	readTypeRaw handles the reading of the type without any nilable checks. We check the type code of the type, and 
+	route to the appropriate read method based on the type. For reference types, we first Resolve() the type to determine 
+	if we can resolve it to a known generated struct type, or if it references an externally defined type. 
+ */}}
+{{- define "readTypeRaw" -}}
+    {{/* types.BasicType */ -}}
+    {{- if le .Type.Code 13 -}}
+        {{ template "readPrimitive" . }}
+    {{/* types.MapType */ -}}
+    {{- else if eq .Type.Code 14 -}}
+        {{ template "readMap" . }}
+    {{/* types.SliceType */ -}}
+    {{- else if eq .Type.Code 15 -}}
+        {{ template "readSlice" . }}
+    {{/* types.InterfaceType */ -}}
+    {{- else if eq .Type.Code 16 -}}
+        {{ template "readInterface" . }}
+    {{/* types.StructType */ -}}
+    {{- else if eq .Type.Code 17 -}}
+        {{ template "readStruct" . }}
+    {{/* types.ReferenceType */ -}}
+    {{- else if eq .Type.Code 18 -}}
+        {{- $resolvedType := call .Type.Resolve }}
+        {{- if ne $resolvedType nil }} 
+            {{ template "readTypeRaw" (ToReadParams .Context $resolvedType .Target .Set) }}
+        {{- else }}
+            {{ template "readReference" . }}
+        {{- end }}
+    {{/* types.AliasType */ -}}
+    {{- else if eq .Type.Code 19 -}}	
+        {{ template "readAlias" . }}
+    {{- end -}}
+{{- end -}}
+
+
+
+
+// UnmarshalBinary uses the data passed byte array to set all the internal properties of
+// the {{ .Type.Name }} type
+func (target *{{ .Type.Name }}) UnmarshalBinary(data []byte) error {
+	ctx := NewDecodingContextFromBytes(data)
+	defer ctx.Close()
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the {{ .Type.Name }} type
+func (target *{{ .Type.Name }}) UnmarshalBinaryFromReader(reader io.Reader) error {
+	ctx := NewDecodingContextFromReader(reader)
+	defer ctx.Close()
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
+// the {{ .Type.Name }} type
+func (target *{{ .Type.Name }}) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+	    if r := recover(); r != nil {
+	        if e, ok := r.(error); ok {
+	            err = e
+	        } else if s, ok := r.(string); ok {
+	            err = fmt.Errorf("unexpected panic: %s", s)
+	        } else {
+	            err = fmt.Errorf("unexpected panic: %+v", r)
+	        }
+	    }
+	}()
+
+	buff := ctx.Buffer
+	version := buff.ReadUInt8()
+
+	if version > {{ .Context.VersionSetConst }} {
+		return fmt.Errorf("Invalid Version Unmarshalling {{ .Type.Name }}. Expected %d or less, got %d", {{ .Context.VersionSetConst }}, version)
+	}
+
+	{{ template "readFullStruct" . }}
+
+	return nil
+}
+

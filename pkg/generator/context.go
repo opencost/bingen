@@ -1,7 +1,6 @@
 package generator
 
 import (
-	"bytes"
 	"fmt"
 	"strings"
 
@@ -15,31 +14,9 @@ type GeneratorContext interface {
 	// VersionSetConst returns the version set constant used for this generator
 	VersionSetConst() string
 
-	// Write writes the formatted string and prepends the current indention level.
-	Write(format string, rest ...interface{})
-
-	// Writeln writes the formatted string and prepends the current indention level, and appends a newline.
-	// Will not append newline to an empty format
-	Writeln(format string, rest ...interface{})
-
-	// WriteErrorHandler handles any inline errors that occur during reading or writing
-	// errorVar is the error implementation to check for non-nil
-	WriteErrorHandler(errCheck Scope, newError string)
-
-	// PushScope pushes a new indention scope for the GeneratorContext after writing the provided format. The
-	// new indention will prepend any GeneratorContext::Write() calls until Pop() is called on the returned scope.
-	PushScope(format string, rest ...interface{}) Scope
-
-	// AsScope returns the current context as its own scope
-	AsScope() Scope
-
-	// PushDebugWrite pushes a write debug scope for a specific generator type and encodable type. Calling
-	// End() on the return value will pop the scope and write out the final state.
-	PushDebugWrite(genType string, typeName string) DebugScope
-
-	// PushDebugRead pushes a read debug scope for a specific generator type and encodable type. Calling
-	// End() on the return value will pop the scope and write out the final state.
-	PushDebugRead(genType string, typeName string) DebugScope
+	// HandleError handles any inline errors that occur during reading or writing by returning the
+	// generated error handling code for the provided error string
+	HandleError(errString string) string
 
 	// IsStreamable returns true if we should generate streaming implementations of the type
 	IsStreamable() bool
@@ -57,12 +34,6 @@ type GeneratorContext interface {
 	// a migration func.
 	IsMigration() bool
 
-	// PushIndent advances the indentation level, which is prepended to any Write() or Writeln() output.
-	PushIndent()
-
-	// PopIndent reduces the indentation level, which is prepended to any Write() or Writeln() output.
-	PopIndent()
-
 	// NextVar returns the next available general variable name which can be used to avoid collision.
 	NextVar() string
 
@@ -79,7 +50,7 @@ type GeneratorContext interface {
 	NextErrVar() string
 
 	// WithErrorHandler allows the context to be copied with a new error handler override
-	WithErrorHandler(handler func(Scope, string)) GeneratorContext
+	WithErrorHandler(handler func(string) string) GeneratorContext
 }
 
 // GeneratorContextFactory creates new GeneratorContext instances
@@ -90,10 +61,8 @@ type GeneratorContextFactory interface {
 
 // genContextFactory is the default implementation of GeneratorContextFactory
 type genContextFactory struct {
-	version       uint8
-	buffer        *bytes.Buffer
-	indentionSize int
-	errorHandler  func(Scope, string)
+	version      uint8
+	errorHandler func(string) string
 }
 
 // NewContext creates a new GeneratorContext implementation
@@ -103,9 +72,7 @@ func (gcf *genContextFactory) NewContext(opts *types.GenerateTypeOpts) Generator
 	}
 
 	return &genContext{
-		b:          gcf.buffer,
-		i:          NewIndent(4),
-		vsc:        fmt.Sprintf("%sCodecVersion", strings.Title(opts.SetName)),
+		vsc:        fmt.Sprintf("%sCodecVersion", titleCaser.String(opts.SetName)),
 		opts:       opts,
 		loops:      vars.NewAlphaVarNames(vars.SkipAllBut(vars.I, vars.J)...),
 		maps:       vars.NewAlphaVarNames(vars.SkipAllBut(vars.Z, vars.V)...),
@@ -116,20 +83,15 @@ func (gcf *genContextFactory) NewContext(opts *types.GenerateTypeOpts) Generator
 	}
 }
 
-// NewGeneratorContextFactory creates a default GeneratorContext implementation using
-// a target byte buffer, and the size to use for indentation.
-func NewGeneratorContextFactory(buffer *bytes.Buffer, indentionSize int, errorHandler func(Scope, string)) GeneratorContextFactory {
+// NewGeneratorContextFactory creates a default GeneratorContext with the default error handler
+func NewGeneratorContextFactory(errorHandler func(string) string) GeneratorContextFactory {
 	return &genContextFactory{
-		buffer:        buffer,
-		indentionSize: indentionSize,
-		errorHandler:  errorHandler,
+		errorHandler: errorHandler,
 	}
 }
 
 // genContext is the default implementation of GeneratorContext
 type genContext struct {
-	b          *bytes.Buffer
-	i          Indent
 	vsc        string
 	opts       *types.GenerateTypeOpts
 	vars       vars.VarNames
@@ -137,14 +99,12 @@ type genContext struct {
 	maps       vars.VarNames
 	oks        vars.VarNames
 	errs       vars.VarNames
-	errHandler func(Scope, string)
+	errHandler func(string) string
 }
 
 // WithErrorHandler allows the context to be copied with a new error handler override
-func (gc *genContext) WithErrorHandler(handler func(Scope, string)) GeneratorContext {
+func (gc *genContext) WithErrorHandler(handler func(string) string) GeneratorContext {
 	return &genContext{
-		b:          gc.b,
-		i:          gc.i,
 		vsc:        gc.vsc,
 		opts:       gc.opts,
 		vars:       gc.vars,
@@ -156,59 +116,14 @@ func (gc *genContext) WithErrorHandler(handler func(Scope, string)) GeneratorCon
 	}
 }
 
-// Write writes the formatted string and prepends the current indention level.
-func (gc *genContext) Write(format string, rest ...interface{}) {
-	formatted := fmt.Sprintf(format, rest...)
-	if formatted == "" {
-		return
-	}
-
-	fmt.Fprintf(gc.b, "%s%s", gc.i, formatted)
-}
-
-// Writeln writes the formatted string and prepends the current indention level, and appends a newline.
-func (gc *genContext) Writeln(format string, rest ...interface{}) {
-	formatted := fmt.Sprintf(format, rest...)
-	if formatted == "" {
-		return
-	}
-
-	fmt.Fprintf(gc.b, "%s%s\n", gc.i, formatted)
-}
-
-// WriteErrorHandler handles any inline errors that occur during reading or writing
-// errorVar is the error implementation to check for non-nil and sets the error usage
-// to the newError parameter.
+// HandleError handles any inline errors that occur during reading or writing by
+// returning the generated code to be used in handling the errString provided.
 //
 // There are two straight-forward implementations here, where the non-streaming generators
 // simply return the error, and the streaming variants set the error flag. The default implementation
 // is the non-streaming error handler
-func (gc *genContext) WriteErrorHandler(errCheck Scope, newErr string) {
-	gc.errHandler(errCheck, newErr)
-}
-
-// PushScope pushes a new indention scope for the genContext after writing the provided format. The
-// new indention will prepend any genContext::Write() calls until Pop() is called on the returned scope.
-func (gc *genContext) PushScope(format string, rest ...interface{}) Scope {
-	s := scope(gc)
-	return s.Push(format, rest...)
-}
-
-// AsScope returns the current context as its own scope
-func (gc *genContext) AsScope() Scope {
-	return scope(gc)
-}
-
-// PushDebugWrite pushes a write debug scope for a specific generator type and encodable type. Calling
-// End() on the return value will pop the scope and write out the final state.
-func (gc *genContext) PushDebugWrite(genType string, typeName string) DebugScope {
-	return BeginDebugScope(gc, DebugEncodeTypeWrite, genType, typeName)
-}
-
-// PushDebugRead pushes a read debug scope for a specific generator type and encodable type. Calling
-// End() on the return value will pop the scope and write out the final state.
-func (gc *genContext) PushDebugRead(genType string, typeName string) DebugScope {
-	return BeginDebugScope(gc, DebugEncodeTypeRead, genType, typeName)
+func (gc *genContext) HandleError(errString string) string {
+	return gc.errHandler(errString)
 }
 
 func (gc *genContext) VersionSetConst() string {
@@ -239,20 +154,6 @@ func (gc *genContext) IsPostProcess() bool {
 // a migration func.
 func (gc *genContext) IsMigration() bool {
 	return gc.opts.IsMigration
-}
-
-func (gc *genContext) Out() *bytes.Buffer {
-	return gc.b
-}
-
-// PushIndent advances the indentation level, which is prepended to any Write() or Writeln() output.
-func (gc *genContext) PushIndent() {
-	gc.i.Out()
-}
-
-// PopIndent reduces the indentation level, which is prepended to any Write() or Writeln() output.
-func (gc *genContext) PopIndent() {
-	gc.i.In()
 }
 
 // NextVar returns the next available general variable name which can be used to avoid collision.

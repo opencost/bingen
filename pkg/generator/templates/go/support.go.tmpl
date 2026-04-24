@@ -9,31 +9,39 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-package containerv2
+package {{ .Package }}
 
 import (
+	"sync"
 	"fmt"
 	"io"
-	"iter"
 	"os"
+	"unsafe"
+{{ if gt (len .StreamableTypes) 0 -}}
+	"iter"
+{{- end }}
 	"reflect"
 	"strings"
-	"sync"
-	"unsafe"
 
-	util "github.com/opencost/bingen/pkg/util"
+	{{- range .Imports }}
+		"{{.}}"
+	{{- end }}
+
+	util "{{.BufferImport}}"
 )
 
 const (
 	// GeneratorPackageName is the package the generator is targetting
-	GeneratorPackageName string = "containerv2"
+    GeneratorPackageName string = "{{ .Package }}"
 
-	// BinaryTagStringTable is written and/or read prior to the existence of a string
+    // BinaryTagStringTable is written and/or read prior to the existence of a string 
 	// table (where each index is encoded as a string entry in the resource
 	BinaryTagStringTable string = "BGST"
-
-	// ContainerExampleCodecVersion is used for any resources listed in the ContainerExample version set
-	ContainerExampleCodecVersion uint8 = 2
+{{ range .VersionSets }}
+	{{ $name := ToTitle .Name -}}
+	// {{ $name }}CodecVersion is used for any resources listed in the {{ $name }} version set
+	{{ $name }}CodecVersion uint8 = {{ .Version }}
+{{ end }}
 )
 
 //--------------------------------------------------------------------------
@@ -42,26 +50,26 @@ const (
 
 var (
 	bingenConfigLock sync.RWMutex
-	bingenConfig     *BingenConfiguration = DefaultBingenConfiguration()
+	bingenConfig 	 *BingenConfiguration = DefaultBingenConfiguration() 
 )
 
-// BingenConfiguration is used to set any custom configuration in the way files are encoded
-// or decoded.
-type BingenConfiguration struct {
+// BingenConfiguration is used to set any custom configuration in the way files are encoded 
+// or decoded. 
+type BingenConfiguration struct { 
 	// FileBackedStringTableEnabled enables the use of file-backed string tables for streaming
-	// bingen decoding.
+	// bingen decoding. 
 	FileBackedStringTableEnabled bool
 
-	// FileBackedStringTableDir is the directory to write the string table files for reading.
+	// FileBackedStringTableDir is the directory to write the string table files for reading. 
 	FileBackedStringTableDir string
 }
 
 // DefaultBingenConfiguration creates the default implementation of the bingen configuration
 // and returns it.
 func DefaultBingenConfiguration() *BingenConfiguration {
-	return &BingenConfiguration{
-		FileBackedStringTableEnabled: false,
-		FileBackedStringTableDir:     os.TempDir(),
+	return &BingenConfiguration {
+		FileBackedStringTableEnabled: false, 
+		FileBackedStringTableDir: os.TempDir(),
 	}
 }
 
@@ -69,41 +77,43 @@ func DefaultBingenConfiguration() *BingenConfiguration {
 // and encoder behavior.
 func ConfigureBingen(config *BingenConfiguration) {
 	bingenConfigLock.Lock()
-	defer bingenConfigLock.Unlock()
+	defer bingenConfigLock.Unlock() 
 
 	if config == nil {
-		config = DefaultBingenConfiguration()
+		config = DefaultBingenConfiguration() 
 	}
-	bingenConfig = config
+	bingenConfig = config 
 }
 
-// IsBingenFileBackedStringTableEnabled accessor for file backed string table configuration
+// IsBingenFileBackedStringTableEnabled accessor for file backed string table configuration 
 func IsBingenFileBackedStringTableEnabled() bool {
 	bingenConfigLock.RLock()
-	defer bingenConfigLock.RUnlock()
+	defer bingenConfigLock.RUnlock() 
 
-	return bingenConfig.FileBackedStringTableEnabled
+	return bingenConfig.FileBackedStringTableEnabled 
 }
 
 // BingenFileBackedStringTableDir returns the directory configured for file backed string tables.
 func BingenFileBackedStringTableDir() string {
 	bingenConfigLock.RLock()
-	defer bingenConfigLock.RUnlock()
+	defer bingenConfigLock.RUnlock() 
 
-	return bingenConfig.FileBackedStringTableDir
+	return bingenConfig.FileBackedStringTableDir 
 }
 
 //--------------------------------------------------------------------------
-//  Type Map
+//  Type Map 
 //--------------------------------------------------------------------------
 
 // Generated type map for resolving interface implementations to to concrete types
 var typeMap map[string]reflect.Type = map[string]reflect.Type{
-	"Container": reflect.TypeFor[Container](),
+{{- range .Types }}
+	"{{ .Name }}": reflect.TypeFor[{{ .Name }}](),
+{{- end }}
 }
 
 //--------------------------------------------------------------------------
-//  Type Helpers
+//  Type Helpers  
 //--------------------------------------------------------------------------
 
 // isBinaryTag returns true when the first bytes in the provided binary matches the tag
@@ -178,6 +188,7 @@ func resolveType(t string) (pkg string, name string, isPtr bool) {
 	return
 }
 
+{{ if gt (len .StreamableTypes) 0 -}}
 //--------------------------------------------------------------------------
 //  Stream Helpers
 //--------------------------------------------------------------------------
@@ -188,7 +199,9 @@ type StreamFactoryFunc func(io.Reader) BingenStream
 // Generated streamable factory map for finding the specific new stream methods
 // by T type
 var streamFactoryMap map[reflect.Type]StreamFactoryFunc = map[reflect.Type]StreamFactoryFunc{
-	reflect.TypeFor[Container](): NewContainerStream,
+{{- range .StreamableTypes }}
+    reflect.TypeFor[{{ .Name }}](): New{{ .Name }}Stream,
+{{- end }}
 }
 
 // NewStreamFor accepts an io.Reader, and returns a new BingenStream for the generic T
@@ -216,7 +229,7 @@ type BingenStream interface {
 
 	// Error returns an error if one occurred during the process of streaming the type's fields.
 	// This can be checked after iterating through the Stream().
-	Error() error
+	Error() error 
 }
 
 // BingenValue contains the value of a field as well as any index/key associated with that value.
@@ -251,6 +264,7 @@ type BingenFieldInfo struct {
 	Name string
 }
 
+{{ end }}
 //--------------------------------------------------------------------------
 //  String Table Writer
 //--------------------------------------------------------------------------
@@ -519,6 +533,7 @@ func (fstr *FileStringTableReader) Close() error {
 	return err
 }
 
+
 //--------------------------------------------------------------------------
 //  Codec Context
 //--------------------------------------------------------------------------
@@ -615,341 +630,3 @@ type BinDecoder interface {
 	UnmarshalBinaryWithContext(*DecodingContext) error
 }
 
-//--------------------------------------------------------------------------
-//  Container
-//--------------------------------------------------------------------------
-
-// MarshalBinary serializes the internal properties of this Container instance
-// into a byte array
-func (target *Container) MarshalBinary() (data []byte, err error) {
-	ctx := &EncodingContext{
-		Buffer: util.NewBuffer(),
-		Table:  nil,
-	}
-
-	e := target.MarshalBinaryWithContext(ctx)
-	if e != nil {
-		return nil, e
-	}
-
-	encBytes := ctx.Buffer.Bytes()
-	return encBytes, nil
-}
-
-// MarshalBinaryWithContext serializes the internal properties of this Container instance
-// into a byte array leveraging a predefined context.
-func (target *Container) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
-	// panics are recovered and propagated as errors
-	defer func() {
-		if r := recover(); r != nil {
-			if e, ok := r.(error); ok {
-				err = e
-			} else if s, ok := r.(string); ok {
-				err = fmt.Errorf("unexpected panic: %s", s)
-			} else {
-				err = fmt.Errorf("unexpected panic: %+v", r)
-			}
-		}
-	}()
-
-	buff := ctx.Buffer
-	buff.WriteUInt8(ContainerExampleCodecVersion) // version
-
-	if ctx.IsStringTable() {
-		a := ctx.Table.AddOrGet(target.Name)
-		buff.WriteInt(a) // write table index
-	} else {
-		buff.WriteString(target.Name) // write string
-	}
-
-	if target.Children == nil {
-		buff.WriteUInt8(uint8(0)) // write nil byte
-	} else {
-		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
-		// --- [begin][write][slice]([]string) ---
-		buff.WriteInt(len(target.Children)) // slice length
-		for i := range target.Children {
-			if ctx.IsStringTable() {
-				b := ctx.Table.AddOrGet(target.Children[i])
-				buff.WriteInt(b) // write table index
-			} else {
-				buff.WriteString(target.Children[i]) // write string
-			}
-
-		}
-		// --- [end][write][slice]([]string) ---
-
-	}
-
-	buff.WriteFloat64(target.oldValue) // write float64
-
-	if target.Value == nil {
-		buff.WriteUInt8(uint8(0)) // write nil byte
-	} else {
-		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
-		buff.WriteFloat64(*target.Value) // write float64
-
-	}
-
-	return nil
-}
-
-// UnmarshalBinary uses the data passed byte array to set all the internal properties of
-// the Container type
-func (target *Container) UnmarshalBinary(data []byte) error {
-	ctx := NewDecodingContextFromBytes(data)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
-// the Container type
-func (target *Container) UnmarshalBinaryFromReader(reader io.Reader) error {
-	ctx := NewDecodingContextFromReader(reader)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
-// the Container type
-func (target *Container) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
-	// panics are recovered and propagated as errors
-	defer func() {
-		if r := recover(); r != nil {
-			if e, ok := r.(error); ok {
-				err = e
-			} else if s, ok := r.(string); ok {
-				err = fmt.Errorf("unexpected panic: %s", s)
-			} else {
-				err = fmt.Errorf("unexpected panic: %+v", r)
-			}
-		}
-	}()
-
-	buff := ctx.Buffer
-	version := buff.ReadUInt8()
-
-	if version > ContainerExampleCodecVersion {
-		return fmt.Errorf("Invalid Version Unmarshaling Container. Expected %d or less, got %d", ContainerExampleCodecVersion, version)
-	}
-
-	var b string
-	if ctx.IsStringTable() {
-		c := buff.ReadInt() // read string index
-		b = ctx.Table.At(c)
-	} else {
-		b = buff.ReadString() // read string
-	}
-	a := b
-	target.Name = a
-
-	if buff.ReadUInt8() == uint8(0) {
-		target.Children = nil
-	} else {
-		// --- [begin][read][slice]([]string) ---
-		e := buff.ReadInt() // slice len
-		d := make([]string, e)
-		for i := range e {
-			var f string
-			var h string
-			if ctx.IsStringTable() {
-				l := buff.ReadInt() // read string index
-				h = ctx.Table.At(l)
-			} else {
-				h = buff.ReadString() // read string
-			}
-			g := h
-			f = g
-
-			d[i] = f
-		}
-		target.Children = d
-		// --- [end][read][slice]([]string) ---
-
-	}
-
-	m := buff.ReadFloat64() // read float64
-	target.oldValue = m
-
-	// field version check
-	if uint8(2) <= version {
-		if buff.ReadUInt8() == uint8(0) {
-			target.Value = nil
-		} else {
-
-			n := buff.ReadFloat64() // read float64
-			target.Value = &n
-
-		}
-
-	} else {
-		target.Value = nil
-	}
-
-	// execute migration func if version delta detected
-	if version != ContainerExampleCodecVersion {
-		migrateContainer(target, version, ContainerExampleCodecVersion)
-	}
-
-	return nil
-}
-
-//--------------------------------------------------------------------------
-//  ContainerStream
-//--------------------------------------------------------------------------
-
-// ContainerStream is a single use field stream for the contents of an Container instance. Instead of creating an instance and populating
-// the fields on that instance, we provide a streaming iterator which yields (BingenFieldInfo, *BingenValue) tuples for each
-// streamable element. All slices and maps will be flattened one depth and each element streamed individually.
-type ContainerStream struct {
-	reader io.Reader
-	ctx    *DecodingContext
-	err    error
-}
-
-// Closes closes the internal io.Reader used to read and parse the Container fields.
-// This should be called once the stream is no longer needed.
-func (stream *ContainerStream) Close() {
-	if closer, ok := stream.reader.(io.Closer); ok {
-		closer.Close()
-	}
-	stream.ctx.Close()
-}
-
-// Error returns an error if one occurred during the process of streaming the Container
-// This can be checked after iterating through the Stream().
-func (stream *ContainerStream) Error() error {
-	return stream.err
-}
-
-// NewContainerStream creates a new ContainerStream, which uses the io.Reader data to stream all internal fields of an Container instance
-func NewContainerStream(reader io.Reader) BingenStream {
-	ctx := NewDecodingContextFromReader(reader)
-
-	return &ContainerStream{
-		ctx:    ctx,
-		reader: reader,
-	}
-}
-
-// Stream returns the iterator which will stream each field of the target type.
-func (stream *ContainerStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] {
-	return func(yield func(BingenFieldInfo, *BingenValue) bool) {
-		var fi BingenFieldInfo
-
-		ctx := stream.ctx
-		buff := ctx.Buffer
-		version := buff.ReadUInt8()
-
-		if version > ContainerExampleCodecVersion {
-			stream.err = fmt.Errorf("Invalid Version Unmarshalling Container. Expected %d or less, got %d", ContainerExampleCodecVersion, version)
-			return
-		}
-
-		fi = BingenFieldInfo{
-			Type: reflect.TypeFor[string](),
-			Name: "Name",
-		}
-
-		var a string
-		var c string
-		if ctx.IsStringTable() {
-			d := buff.ReadInt() // read string index
-			c = ctx.Table.At(d)
-		} else {
-			c = buff.ReadString() // read string
-		}
-		b := c
-		a = b
-		if !yield(fi, singleV(a)) {
-			return
-		}
-
-		fi = BingenFieldInfo{
-			Type: reflect.TypeFor[[]string](),
-			Name: "Children",
-		}
-		if buff.ReadUInt8() == uint8(0) {
-			if !yield(fi, nil) {
-				return
-			}
-		} else {
-			// --- [begin][read][streaming-slice]([]string) ---
-			e := buff.ReadInt() // slice len
-			for i := range e {
-
-				var f string
-				var h string
-				if ctx.IsStringTable() {
-					l := buff.ReadInt() // read string index
-					h = ctx.Table.At(l)
-				} else {
-					h = buff.ReadString() // read string
-				}
-				g := h
-				f = g
-
-				if !yield(fi, pairV(i, f)) {
-					return
-				}
-			}
-			// --- [end][read][streaming-slice]([]string) ---
-
-		}
-
-		fi = BingenFieldInfo{
-			Type: reflect.TypeFor[float64](),
-			Name: "oldValue",
-		}
-
-		var m float64
-		n := buff.ReadFloat64() // read float64
-		m = n
-		if !yield(fi, singleV(m)) {
-			return
-		}
-
-		fi = BingenFieldInfo{
-			Type: reflect.TypeFor[float64](),
-			Name: "Value",
-		}
-		// field version check
-		if uint8(2) <= version {
-
-			if buff.ReadUInt8() == uint8(0) {
-				if !yield(fi, nil) {
-					return
-				}
-			} else {
-
-				var o *float64
-				p := buff.ReadFloat64() // read float64
-				o = &p
-				if !yield(fi, singleV(o)) {
-					return
-				}
-
-			}
-
-		} else {
-
-			if !yield(fi, nil) {
-				return
-			}
-		}
-	}
-}

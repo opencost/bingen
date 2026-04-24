@@ -14,7 +14,7 @@ $ go get github.com/opencost/bingen/cmd/bingen
 
 Then install `bingen`:
 ```bash
-$ go install -i github.com/opencost/bingen/cmd/bingen
+$ go install github.com/opencost/bingen/cmd/bingen
 ```
 
 ### Usage
@@ -53,6 +53,41 @@ If you're using a non-standard library type as a field on a type targetted for g
 ```go
 // @bingen:import:github.com/acme/widgets/pkg/widget
 ```
+
+##### External Alias Types
+A more advanced version of the *import* command is the *define* command. This is used when you have an alias type that you want to be treated as a first class citizen in the generated code. For example, let's say you have `type WidgetID string` in a `shared` package, and you want to used `shared.WidgetID` on a field within your bingen package. If you were to only use the `// @bingen:import:github.com/acme/widgets/pkg/shared` directive, then the generated code would treat `shared.WidgetID` as a `encoding.BinaryMarshaler` and `encoding.BinaryUnmarshaler` implementation, not as a simple string. In order to have the generated code treat `shared.WidgetID` as a string, you need to define the external alias type with the `define` directive:
+
+Let's say we have the following `WidgetID` alias type in the `github.com/acme/widgets/pkg/shared` package:
+```go 
+package shared
+
+type WidgetID string 
+```
+
+Now, in our target bingen package, we have the following type that uses `shared.WidgetID`:
+```go 
+package stuff 
+
+import "github.com/acme/widgets/pkg/shared"
+
+type Widget struct {
+      ID shared.WidgetID 
+}
+```
+
+Now our bingen syntax will need to include the `define` directive for `shared.WidgetID`:
+```go
+package stuff
+
+// @bingen:define[string]:github.com/acme/widgets/pkg/shared.WidgetID
+
+// @bingen:generate:Widget
+
+//go:generate bingen -package=stuff -version=1 -buffer=github.com/acme/widgets/pkg/util 
+```
+
+Note that the `define` directive also implicitly imports the package, so you do not need to also include an `import` directive for the same package. To summarize, the `import` directive is used when you have a non-standard library type that implements `encoding.BinaryMarshaler` and `encoding.BinaryUnmarshaler`, and you want to use it as a field on a generated type. The `define` directive is used when you have an alias type that does not implement `encoding.BinaryMarshaler` and `encoding.BinaryUnmarshaler`, but you want to treat it as a first class citizen in the generated code with the underlying type's encoding/decoding behavior.
+
 
 ##### Interface Implementations
 It's important that if you type any fields as an `interface`, you'll need to annotate both the interface type as well as any implementations of that type for generation. Continuing the example above, assume we have a `type Thing interface` which both `Bar`, `Widget`, and a new type `Gear` implement. We'll need to add the annotation for both the new type and the interface:
