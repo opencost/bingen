@@ -1,5 +1,7 @@
 package aliases
 
+import "github.com/opencost/bingen/tests/shared"
+
 type Child string
 
 type Info struct {
@@ -12,12 +14,16 @@ type ChildInfo *Info
 type OtherChildInfo []ChildInfo
 
 type Parent struct {
-	Name           string
-	Age            int
-	FirstChild     Child
-	FirstChildInfo ChildInfo
-	Children       []Child
-	ChildrenInfo   OtherChildInfo
+	Name            shared.Name
+	Age             shared.Age
+	FirstChild      Child
+	FirstChildInfo  ChildInfo
+	Children        []Child
+	ChildrenInfo    OtherChildInfo
+	FavoriteNumbers shared.FloatList
+	NameMap         shared.StrMap
+	U32s            shared.UIntPtrList
+	Slices          shared.DoubleSlice
 }
 
 func NewGeneratedParent() *Parent {
@@ -44,12 +50,22 @@ func NewGeneratedParent() *Parent {
 	}
 
 	return &Parent{
-		Name:           "Dad",
-		Age:            51,
-		FirstChild:     allChildren[0],
-		FirstChildInfo: infos[0],
-		Children:       allChildren,
-		ChildrenInfo:   OtherChildInfo(infos),
+		Name:            "Dad",
+		Age:             toPtr(51),
+		FirstChild:      allChildren[0],
+		FirstChildInfo:  infos[0],
+		Children:        allChildren,
+		ChildrenInfo:    OtherChildInfo(infos),
+		FavoriteNumbers: shared.FloatList([]float64{1.2, 3.65, 82.3}),
+		NameMap: shared.StrMap(map[string]int{
+			children[0]: 1,
+			children[1]: 2,
+			children[2]: 3,
+		}),
 	}
 
+}
+
+func toPtr[T any](v T) *T {
+	return &v
 }

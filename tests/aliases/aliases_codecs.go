@@ -21,6 +21,8 @@ import (
 	"sync"
 	"unsafe"
 
+	"github.com/opencost/bingen/tests/shared"
+
 	util "github.com/opencost/bingen/pkg/util"
 )
 
@@ -777,14 +779,27 @@ func (target *Parent) MarshalBinaryWithContext(ctx *EncodingContext) (err error)
 	buff := ctx.Buffer
 	buff.WriteUInt8(DefaultCodecVersion) // version
 
+	// --- [begin][write][alias](shared.Name) ---
+
 	if ctx.IsStringTable() {
-		a := ctx.Table.AddOrGet(target.Name)
+		a := ctx.Table.AddOrGet(string(target.Name))
 		buff.WriteInt(a) // write table index
 	} else {
-		buff.WriteString(target.Name) // write string
+		buff.WriteString(string(target.Name)) // write string
 	}
 
-	buff.WriteInt(target.Age) // write int
+	// --- [end][write][alias](shared.Name) ---
+
+	// --- [begin][write][alias](shared.Age) ---
+	if ((*int)(target.Age)) == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		buff.WriteInt(*((*int)(target.Age))) // write int
+
+	}
+	// --- [end][write][alias](shared.Age) ---
 
 	// --- [begin][write][alias](Child) ---
 
@@ -867,6 +882,123 @@ func (target *Parent) MarshalBinaryWithContext(ctx *EncodingContext) (err error)
 	}
 	// --- [end][write][alias](OtherChildInfo) ---
 
+	// --- [begin][write][alias](shared.FloatList) ---
+	if []float64(target.FavoriteNumbers) == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][slice]([]float64) ---
+		buff.WriteInt(len([]float64(target.FavoriteNumbers))) // slice length
+		for ii := range []float64(target.FavoriteNumbers) {
+			buff.WriteFloat64([]float64(target.FavoriteNumbers)[ii]) // write float64
+
+		}
+		// --- [end][write][slice]([]float64) ---
+
+	}
+	// --- [end][write][alias](shared.FloatList) ---
+
+	// --- [begin][write][alias](shared.StrMap) ---
+	if map[string]int(target.NameMap) == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][map](map[string]int) ---
+		buff.WriteInt(len(map[string]int(target.NameMap))) // map length
+		for v, z := range map[string]int(target.NameMap) {
+			if ctx.IsStringTable() {
+				d := ctx.Table.AddOrGet(v)
+				buff.WriteInt(d) // write table index
+			} else {
+				buff.WriteString(v) // write string
+			}
+
+			buff.WriteInt(z) // write int
+
+		}
+		// --- [end][write][map](map[string]int) ---
+
+	}
+	// --- [end][write][alias](shared.StrMap) ---
+
+	// --- [begin][write][alias](shared.UIntPtrList) ---
+	if []*uint32(target.U32s) == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][slice]([]*uint32) ---
+		buff.WriteInt(len([]*uint32(target.U32s))) // slice length
+		for jj := range []*uint32(target.U32s) {
+			if []*uint32(target.U32s)[jj] == nil {
+				buff.WriteUInt8(uint8(0)) // write nil byte
+			} else {
+				buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+				buff.WriteUInt32(*[]*uint32(target.U32s)[jj]) // write uint32
+
+			}
+		}
+		// --- [end][write][slice]([]*uint32) ---
+
+	}
+	// --- [end][write][alias](shared.UIntPtrList) ---
+
+	// --- [begin][write][alias](shared.DoubleSlice) ---
+	if [][]map[string]*int(target.Slices) == nil {
+		buff.WriteUInt8(uint8(0)) // write nil byte
+	} else {
+		buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+		// --- [begin][write][slice]([][]map[string]*int) ---
+		buff.WriteInt(len([][]map[string]*int(target.Slices))) // slice length
+		for iii := range [][]map[string]*int(target.Slices) {
+			if [][]map[string]*int(target.Slices)[iii] == nil {
+				buff.WriteUInt8(uint8(0)) // write nil byte
+			} else {
+				buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+				// --- [begin][write][slice]([]map[string]*int) ---
+				buff.WriteInt(len([][]map[string]*int(target.Slices)[iii])) // slice length
+				for jjj := range [][]map[string]*int(target.Slices)[iii] {
+					if [][]map[string]*int(target.Slices)[iii][jjj] == nil {
+						buff.WriteUInt8(uint8(0)) // write nil byte
+					} else {
+						buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+						// --- [begin][write][map](map[string]*int) ---
+						buff.WriteInt(len([][]map[string]*int(target.Slices)[iii][jjj])) // map length
+						for vv, zz := range [][]map[string]*int(target.Slices)[iii][jjj] {
+							if ctx.IsStringTable() {
+								e := ctx.Table.AddOrGet(vv)
+								buff.WriteInt(e) // write table index
+							} else {
+								buff.WriteString(vv) // write string
+							}
+							if zz == nil {
+								buff.WriteUInt8(uint8(0)) // write nil byte
+							} else {
+								buff.WriteUInt8(uint8(1)) // write non-nil byte
+
+								buff.WriteInt(*zz) // write int
+
+							}
+						}
+						// --- [end][write][map](map[string]*int) ---
+
+					}
+				}
+				// --- [end][write][slice]([]map[string]*int) ---
+
+			}
+		}
+		// --- [end][write][slice]([][]map[string]*int) ---
+
+	}
+	// --- [end][write][alias](shared.DoubleSlice) ---
+
 	return nil
 }
 
@@ -921,121 +1053,292 @@ func (target *Parent) UnmarshalBinaryWithContext(ctx *DecodingContext) (err erro
 		return fmt.Errorf("Invalid Version Unmarshaling Parent. Expected %d or less, got %d", DefaultCodecVersion, version)
 	}
 
-	var b string
+	// --- [begin][read][alias](shared.Name) ---
+	var a string
+	var c string
 	if ctx.IsStringTable() {
-		c := buff.ReadInt() // read string index
-		b = ctx.Table.At(c)
+		d := buff.ReadInt() // read string index
+		c = ctx.Table.At(d)
 	} else {
-		b = buff.ReadString() // read string
+		c = buff.ReadString() // read string
 	}
-	a := b
-	target.Name = a
+	b := c
+	a = b
 
-	d := buff.ReadInt() // read int
-	target.Age = d
+	target.Name = shared.Name(a)
+	// --- [end][read][alias](shared.Name) ---
+
+	// --- [begin][read][alias](shared.Age) ---
+	var e *int
+	if buff.ReadUInt8() == uint8(0) {
+		e = nil
+	} else {
+
+		f := buff.ReadInt() // read int
+		e = &f
+
+	}
+
+	target.Age = shared.Age(e)
+	// --- [end][read][alias](shared.Age) ---
 
 	// --- [begin][read][alias](Child) ---
-	var e string
 	var g string
+	var l string
 	if ctx.IsStringTable() {
-		h := buff.ReadInt() // read string index
-		g = ctx.Table.At(h)
+		m := buff.ReadInt() // read string index
+		l = ctx.Table.At(m)
 	} else {
-		g = buff.ReadString() // read string
+		l = buff.ReadString() // read string
 	}
-	f := g
-	e = f
+	h := l
+	g = h
 
-	target.FirstChild = Child(e)
+	target.FirstChild = Child(g)
 	// --- [end][read][alias](Child) ---
 
 	// --- [begin][read][alias](ChildInfo) ---
-	var l *Info
+	var n *Info
 	if buff.ReadUInt8() == uint8(0) {
-		l = nil
+		n = nil
 	} else {
 		// --- [begin][read][struct](Info) ---
-		m := new(Info)
+		o := new(Info)
 		buff.ReadInt() // [compatibility, unused]
-		errA := m.UnmarshalBinaryWithContext(ctx)
+		errA := o.UnmarshalBinaryWithContext(ctx)
 		if errA != nil {
 			return errA
 		}
-		l = m
+		n = o
 		// --- [end][read][struct](Info) ---
 
 	}
 
-	target.FirstChildInfo = ChildInfo(l)
+	target.FirstChildInfo = ChildInfo(n)
 	// --- [end][read][alias](ChildInfo) ---
 
 	if buff.ReadUInt8() == uint8(0) {
 		target.Children = nil
 	} else {
 		// --- [begin][read][slice]([]Child) ---
-		o := buff.ReadInt() // slice len
-		n := make([]Child, o)
-		for i := range o {
+		q := buff.ReadInt() // slice len
+		p := make([]Child, q)
+		for i := range q {
 			// --- [begin][read][alias](Child) ---
-			var q string
 			var s string
+			var u string
 			if ctx.IsStringTable() {
-				t := buff.ReadInt() // read string index
-				s = ctx.Table.At(t)
+				w := buff.ReadInt() // read string index
+				u = ctx.Table.At(w)
 			} else {
-				s = buff.ReadString() // read string
+				u = buff.ReadString() // read string
 			}
-			r := s
-			q = r
+			t := u
+			s = t
 
-			p := Child(q)
+			r := Child(s)
 			// --- [end][read][alias](Child) ---
 
-			n[i] = p
+			p[i] = r
 		}
-		target.Children = n
+		target.Children = p
 		// --- [end][read][slice]([]Child) ---
 
 	}
 
 	// --- [begin][read][alias](OtherChildInfo) ---
-	var u []ChildInfo
+	var x []ChildInfo
 	if buff.ReadUInt8() == uint8(0) {
-		u = nil
+		x = nil
 	} else {
 		// --- [begin][read][slice]([]ChildInfo) ---
-		x := buff.ReadInt() // slice len
-		w := make([]ChildInfo, x)
-		for j := range x {
+		aa := buff.ReadInt() // slice len
+		y := make([]ChildInfo, aa)
+		for j := range aa {
 			// --- [begin][read][alias](ChildInfo) ---
-			var aa *Info
+			var cc *Info
 			if buff.ReadUInt8() == uint8(0) {
-				aa = nil
+				cc = nil
 			} else {
 				// --- [begin][read][struct](Info) ---
-				bb := new(Info)
+				dd := new(Info)
 				buff.ReadInt() // [compatibility, unused]
-				errB := bb.UnmarshalBinaryWithContext(ctx)
+				errB := dd.UnmarshalBinaryWithContext(ctx)
 				if errB != nil {
 					return errB
 				}
-				aa = bb
+				cc = dd
 				// --- [end][read][struct](Info) ---
 
 			}
 
-			y := ChildInfo(aa)
+			bb := ChildInfo(cc)
 			// --- [end][read][alias](ChildInfo) ---
 
-			w[j] = y
+			y[j] = bb
 		}
-		u = w
+		x = y
 		// --- [end][read][slice]([]ChildInfo) ---
 
 	}
 
-	target.ChildrenInfo = OtherChildInfo(u)
+	target.ChildrenInfo = OtherChildInfo(x)
 	// --- [end][read][alias](OtherChildInfo) ---
+
+	// --- [begin][read][alias](shared.FloatList) ---
+	var ee []float64
+	if buff.ReadUInt8() == uint8(0) {
+		ee = nil
+	} else {
+		// --- [begin][read][slice]([]float64) ---
+		gg := buff.ReadInt() // slice len
+		ff := make([]float64, gg)
+		for ii := range gg {
+			var hh float64
+			ll := buff.ReadFloat64() // read float64
+			hh = ll
+
+			ff[ii] = hh
+		}
+		ee = ff
+		// --- [end][read][slice]([]float64) ---
+
+	}
+
+	target.FavoriteNumbers = shared.FloatList(ee)
+	// --- [end][read][alias](shared.FloatList) ---
+
+	// --- [begin][read][alias](shared.StrMap) ---
+	var mm map[string]int
+	if buff.ReadUInt8() == uint8(0) {
+		mm = nil
+	} else {
+		// --- [begin][read][map](map[string]int) ---
+		oo := buff.ReadInt() // map len
+		nn := make(map[string]int, oo)
+		for range oo {
+			var v string
+			var qq string
+			if ctx.IsStringTable() {
+				rr := buff.ReadInt() // read string index
+				qq = ctx.Table.At(rr)
+			} else {
+				qq = buff.ReadString() // read string
+			}
+			pp := qq
+			v = pp
+
+			var z int
+			ss := buff.ReadInt() // read int
+			z = ss
+
+			nn[v] = z
+		}
+		mm = nn
+		// --- [end][read][map](map[string]int) ---
+
+	}
+
+	target.NameMap = shared.StrMap(mm)
+	// --- [end][read][alias](shared.StrMap) ---
+
+	// --- [begin][read][alias](shared.UIntPtrList) ---
+	var tt []*uint32
+	if buff.ReadUInt8() == uint8(0) {
+		tt = nil
+	} else {
+		// --- [begin][read][slice]([]*uint32) ---
+		ww := buff.ReadInt() // slice len
+		uu := make([]*uint32, ww)
+		for jj := range ww {
+			var xx *uint32
+			if buff.ReadUInt8() == uint8(0) {
+				xx = nil
+			} else {
+
+				yy := buff.ReadUInt32() // read uint32
+				xx = &yy
+
+			}
+
+			uu[jj] = xx
+		}
+		tt = uu
+		// --- [end][read][slice]([]*uint32) ---
+
+	}
+
+	target.U32s = shared.UIntPtrList(tt)
+	// --- [end][read][alias](shared.UIntPtrList) ---
+
+	// --- [begin][read][alias](shared.DoubleSlice) ---
+	var aaa [][]map[string]*int
+	if buff.ReadUInt8() == uint8(0) {
+		aaa = nil
+	} else {
+		// --- [begin][read][slice]([][]map[string]*int) ---
+		ccc := buff.ReadInt() // slice len
+		bbb := make([][]map[string]*int, ccc)
+		for iii := range ccc {
+			var ddd []map[string]*int
+			if buff.ReadUInt8() == uint8(0) {
+				ddd = nil
+			} else {
+				// --- [begin][read][slice]([]map[string]*int) ---
+				fff := buff.ReadInt() // slice len
+				eee := make([]map[string]*int, fff)
+				for jjj := range fff {
+					var ggg map[string]*int
+					if buff.ReadUInt8() == uint8(0) {
+						ggg = nil
+					} else {
+						// --- [begin][read][map](map[string]*int) ---
+						lll := buff.ReadInt() // map len
+						hhh := make(map[string]*int, lll)
+						for range lll {
+							var vv string
+							var nnn string
+							if ctx.IsStringTable() {
+								ooo := buff.ReadInt() // read string index
+								nnn = ctx.Table.At(ooo)
+							} else {
+								nnn = buff.ReadString() // read string
+							}
+							mmm := nnn
+							vv = mmm
+
+							var zz *int
+							if buff.ReadUInt8() == uint8(0) {
+								zz = nil
+							} else {
+
+								ppp := buff.ReadInt() // read int
+								zz = &ppp
+
+							}
+							hhh[vv] = zz
+						}
+						ggg = hhh
+						// --- [end][read][map](map[string]*int) ---
+
+					}
+
+					eee[jjj] = ggg
+				}
+				ddd = eee
+				// --- [end][read][slice]([]map[string]*int) ---
+
+			}
+
+			bbb[iii] = ddd
+		}
+		aaa = bbb
+		// --- [end][read][slice]([][]map[string]*int) ---
+
+	}
+
+	target.Slices = shared.DoubleSlice(aaa)
+	// --- [end][read][alias](shared.DoubleSlice) ---
 
 	return nil
 }
@@ -1093,9 +1396,10 @@ func (stream *ParentStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] {
 		}
 
 		fi = BingenFieldInfo{
-			Type: reflect.TypeFor[string](),
+			Type: reflect.TypeFor[shared.Name](),
 			Name: "Name",
 		}
+		// --- [begin][read][streaming-alias](shared.Name) ---
 
 		var a string
 		var c string
@@ -1107,21 +1411,32 @@ func (stream *ParentStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] {
 		}
 		b := c
 		a = b
-		if !yield(fi, singleV(a)) {
+
+		if !yield(fi, singleV(shared.Name(a))) {
 			return
 		}
+		// --- [end][read][streaming-alias](shared.Name) ---
 
 		fi = BingenFieldInfo{
-			Type: reflect.TypeFor[int](),
+			Type: reflect.TypeFor[shared.Age](),
 			Name: "Age",
 		}
+		// --- [begin][read][streaming-alias](shared.Age) ---
 
-		var e int
-		f := buff.ReadInt() // read int
-		e = f
-		if !yield(fi, singleV(e)) {
+		var e *int
+		if buff.ReadUInt8() == uint8(0) {
+			e = nil
+		} else {
+
+			f := buff.ReadInt() // read int
+			e = &f
+
+		}
+
+		if !yield(fi, singleV(shared.Age(e))) {
 			return
 		}
+		// --- [end][read][streaming-alias](shared.Age) ---
 
 		fi = BingenFieldInfo{
 			Type: reflect.TypeFor[Child](),
@@ -1247,6 +1562,149 @@ func (stream *ParentStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] {
 		}
 		// --- [end][read][streaming-slice]([]ChildInfo) ---
 		// --- [end][read][streaming-alias](OtherChildInfo) ---
+
+		fi = BingenFieldInfo{
+			Type: reflect.TypeFor[shared.FloatList](),
+			Name: "FavoriteNumbers",
+		}
+		// --- [begin][read][streaming-alias](shared.FloatList) ---
+		// --- [begin][read][streaming-slice]([]float64) ---
+		bb := buff.ReadInt() // slice len
+		for ii := range bb {
+
+			var cc float64
+			dd := buff.ReadFloat64() // read float64
+			cc = dd
+
+			if !yield(fi, pairV(ii, cc)) {
+				return
+			}
+		}
+		// --- [end][read][streaming-slice]([]float64) ---
+		// --- [end][read][streaming-alias](shared.FloatList) ---
+
+		fi = BingenFieldInfo{
+			Type: reflect.TypeFor[shared.StrMap](),
+			Name: "NameMap",
+		}
+		// --- [begin][read][streaming-alias](shared.StrMap) ---
+		// --- [begin][read][streaming-map](map[string]int) ---
+		ee := buff.ReadInt() // map len
+		for range ee {
+			var v string
+			var gg string
+			if ctx.IsStringTable() {
+				hh := buff.ReadInt() // read string index
+				gg = ctx.Table.At(hh)
+			} else {
+				gg = buff.ReadString() // read string
+			}
+			ff := gg
+			v = ff
+
+			var z int
+			ll := buff.ReadInt() // read int
+			z = ll
+
+			if !yield(fi, pairV(v, z)) {
+				return
+			}
+		}
+		// --- [end][read][streaming-map](map[string]int) ---
+
+		// --- [end][read][streaming-alias](shared.StrMap) ---
+
+		fi = BingenFieldInfo{
+			Type: reflect.TypeFor[shared.UIntPtrList](),
+			Name: "U32s",
+		}
+		// --- [begin][read][streaming-alias](shared.UIntPtrList) ---
+		// --- [begin][read][streaming-slice]([]*uint32) ---
+		mm := buff.ReadInt() // slice len
+		for jj := range mm {
+
+			var nn *uint32
+			if buff.ReadUInt8() == uint8(0) {
+				nn = nil
+			} else {
+
+				oo := buff.ReadUInt32() // read uint32
+				nn = &oo
+
+			}
+
+			if !yield(fi, pairV(jj, nn)) {
+				return
+			}
+		}
+		// --- [end][read][streaming-slice]([]*uint32) ---
+		// --- [end][read][streaming-alias](shared.UIntPtrList) ---
+
+		fi = BingenFieldInfo{
+			Type: reflect.TypeFor[shared.DoubleSlice](),
+			Name: "Slices",
+		}
+		// --- [begin][read][streaming-alias](shared.DoubleSlice) ---
+		// --- [begin][read][streaming-slice]([][]map[string]*int) ---
+		pp := buff.ReadInt() // slice len
+		for iii := range pp {
+
+			var qq []map[string]*int
+			if buff.ReadUInt8() == uint8(0) {
+				qq = nil
+			} else {
+				// --- [begin][read][slice]([]map[string]*int) ---
+				ss := buff.ReadInt() // slice len
+				rr := make([]map[string]*int, ss)
+				for jjj := range ss {
+					var tt map[string]*int
+					if buff.ReadUInt8() == uint8(0) {
+						tt = nil
+					} else {
+						// --- [begin][read][map](map[string]*int) ---
+						ww := buff.ReadInt() // map len
+						uu := make(map[string]*int, ww)
+						for range ww {
+							var vv string
+							var yy string
+							if ctx.IsStringTable() {
+								aaa := buff.ReadInt() // read string index
+								yy = ctx.Table.At(aaa)
+							} else {
+								yy = buff.ReadString() // read string
+							}
+							xx := yy
+							vv = xx
+
+							var zz *int
+							if buff.ReadUInt8() == uint8(0) {
+								zz = nil
+							} else {
+
+								bbb := buff.ReadInt() // read int
+								zz = &bbb
+
+							}
+							uu[vv] = zz
+						}
+						tt = uu
+						// --- [end][read][map](map[string]*int) ---
+
+					}
+
+					rr[jjj] = tt
+				}
+				qq = rr
+				// --- [end][read][slice]([]map[string]*int) ---
+
+			}
+
+			if !yield(fi, pairV(iii, qq)) {
+				return
+			}
+		}
+		// --- [end][read][streaming-slice]([][]map[string]*int) ---
+		// --- [end][read][streaming-alias](shared.DoubleSlice) ---
 
 	}
 }

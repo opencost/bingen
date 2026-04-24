@@ -370,12 +370,18 @@ func NewTypeCollection(annotations *meta.BingenAnnotated) TypeCollection {
 		imports[im.Name] = im.Path
 	}
 
-	return &typeCollector{
+	tc := &typeCollector{
 		knownTypes:  NewBasicTypes(),
 		collected:   []GenType{},
 		imports:     imports,
 		versionSets: annotations.VersionSets,
 	}
+
+	for _, def := range annotations.Definitions {
+		tc.addTypeDefinition(def)
+	}
+
+	return tc
 }
 
 // AddStructType adds a struct type with the provided fields
@@ -400,6 +406,25 @@ func (tc *typeCollector) AddAlias(t *AnnotatedType, isPtr bool) {
 	resolved := tc.toGenType(t.T.Type, "", isPtr)
 	gt := &AliasType{
 		BasicType: NewBasicType("", t.T.Name.Name, TypeAlias, false, false),
+		Alias:     resolved,
+	}
+
+	tc.knownTypes[gt.Name()] = gt
+}
+
+// type definitions, by design, are treated as an alias since there is no way to express
+// an external type definition within the bingen command syntax. It only differs from an
+// in-package alias by a package prefix. ie: <package>.<alias-name>. This allows field
+// references to easily lookup the type definition at generation time.
+func (tc *typeCollector) addTypeDefinition(def *meta.TypeDefinition) {
+	typeSpec, err := ParseDefined(def)
+	if err != nil {
+		panic(fmt.Errorf("Failed to parse type definition: %s - Error: %w", def.Name, err))
+	}
+
+	resolved := tc.toGenType(typeSpec.Type, "", false)
+	gt := &AliasType{
+		BasicType: NewBasicType(def.Package, def.FullName(), TypeAlias, false, false),
 		Alias:     resolved,
 	}
 

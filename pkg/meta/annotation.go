@@ -19,8 +19,11 @@ const (
 	// AnnotationEndSet pops the annotation set
 	AnnotationEndSet = "end"
 
-	// AnnotationField is an context aware annotation that is made on a single struct field
+	// AnnotationField is a context aware annotation that is made on a single struct field
 	AnnotationField = "field"
+
+	// AnnotationDefine is a mechanism to define type aliases from different packages.
+	AnnotationDefine = "define"
 )
 
 // AnnotationSet options
@@ -121,11 +124,13 @@ func IsGlobalScopedCommand(command string) bool {
 	return strings.EqualFold(command, AnnotationGenerate) ||
 		strings.EqualFold(command, AnnotationImport) ||
 		strings.EqualFold(command, AnnotationSet) ||
-		strings.EqualFold(command, AnnotationEndSet)
+		strings.EqualFold(command, AnnotationEndSet) ||
+		strings.EqualFold(command, AnnotationDefine)
 }
 
 // HasTarget returns true if the annotation includes a command, options, and also a target
 func HasTarget(command string) bool {
 	return strings.EqualFold(command, AnnotationGenerate) ||
-		strings.EqualFold(command, AnnotationImport)
+		strings.EqualFold(command, AnnotationImport) ||
+		strings.EqualFold(command, AnnotationDefine)
 }
