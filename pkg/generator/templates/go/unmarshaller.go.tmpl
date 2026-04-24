@@ -402,7 +402,7 @@ func (target *{{ .Type.Name }}) UnmarshalBinaryWithContext(ctx *DecodingContext)
 	version := buff.ReadUInt8()
 
 	if version > {{ .Context.VersionSetConst }} {
-		return fmt.Errorf("Invalid Version Unmarshaling {{ .Type.Name }}. Expected %d or less, got %d", {{ .Context.VersionSetConst }}, version)
+		return fmt.Errorf("Invalid Version Unmarshalling {{ .Type.Name }}. Expected %d or less, got %d", {{ .Context.VersionSetConst }}, version)
 	}
 
 	{{ template "readFullStruct" . }}
