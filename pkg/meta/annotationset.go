@@ -19,7 +19,7 @@ type BingenAnnotated struct {
 	Imports []string
 
 	// Definitions contains a slice of annotated type definitions that hint to the generator
-	// the existance of a type from another package.
+	// the existence of a type from another package.
 	Definitions []*TypeDefinition
 
 	// VersionSets contains a list of all version set definitions annotated for generation.

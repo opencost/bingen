@@ -11,7 +11,7 @@ import (
 
 // ParseDefined turns the bingen type definition into a go ast.TypeSpec by generating the type
 // definition code, running it through the go parser, and then extracting the parsed TypeSpec.
-// This allows us to pipe the resulting TypeSpec through the existing bingen machinary as if we
+// This allows us to pipe the resulting TypeSpec through the existing bingen machinery as if we
 // were reading the type from the referenced package directly.
 //
 // Like the @bingen:imports command, this allows us to link in external package code without
