@@ -1416,7 +1416,7 @@ func (stream *ParentStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] {
 		}
 
 		fi = BingenFieldInfo{
-			Type: reflect.TypeFor[shared.Name](),
+			Type: reflect.TypeFor[*shared.Name](),
 			Name: "Name",
 		}
 		if buff.ReadUInt8() == uint8(0) {
@@ -1445,7 +1445,7 @@ func (stream *ParentStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] {
 		}
 
 		fi = BingenFieldInfo{
-			Type: reflect.TypeFor[shared.Age](),
+			Type: reflect.TypeFor[*shared.Age](),
 			Name: "Age",
 		}
 		if buff.ReadUInt8() == uint8(0) {

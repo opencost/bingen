@@ -662,7 +662,7 @@ func (target *Container) UnmarshalBinaryWithContext(ctx *DecodingContext) (err e
 	version := buff.ReadUInt8()
 
 	if version > ContainerExampleCodecVersion {
-		return fmt.Errorf("Invalid Version Unmarshaling Container. Expected %d or less, got %d", ContainerExampleCodecVersion, version)
+		return fmt.Errorf("Invalid Version Unmarshalling Container. Expected %d or less, got %d", ContainerExampleCodecVersion, version)
 	}
 
 	var b string

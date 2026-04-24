@@ -151,7 +151,7 @@
         {{- end }}
 
         fi = BingenFieldInfo{
-            Type: reflect.TypeFor[{{ .Type.Name }}](),
+            Type: reflect.TypeFor[{{ .Type.TypeName }}](),
             Name: "{{ .Name }}",
         }
 
