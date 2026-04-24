@@ -31,7 +31,7 @@ Flags:
 ```
 
 ##### Buffer
-The buffer flag should point to the location of the `util.Buffer` type. Since this is currently a private repository, it's best to just copy/paste https://github.com/opencost/bingen/blob/develop/pkg/util/buffer.go into a `pkg/util` within your project. For instance, let's say you copy `buffer.go` to `pkg/util` in your project `github.com/bruh/gen-test`, then the buffer flag would be passed as `-buffer=github.com/bruh/gen-test/pkg/util`
+The buffer flag should point to the location of the `util.Buffer` type. Since this is currently a private repository, it's best to just copy/paste [https://github.com/opencost/bingen/blob/main/pkg/util/buffer.go](https://github.com/opencost/bingen/blob/78b6ec35c5fc1050e2eb44f0d78ff658985413eb/pkg/util/buffer.go) into a `pkg/util` within your project. For instance, let's say you copy `buffer.go` to `pkg/util` in your project `github.com/bruh/gen-test`, then the buffer flag would be passed as `-buffer=github.com/bruh/gen-test/pkg/util`
 
 ##### Example
 The easiest way to use `bingen` is via `go:generate`. In a project that contains custom struct types you wish to generate `MarshalBinary` and `UnmarshalBinary` methods for, navigate to the target package. Assuming that the package `pkg/stuff` has 3 types you want to generate binary marshal/unmarshal for: `Foo`, `Bar`, and `Widget`, create a new source file in `pkg/stuff` with the following:
@@ -55,7 +55,7 @@ If you're using a non-standard library type as a field on a type targetted for g
 ```
 
 ##### External Alias Types
-A more advanced version of the *import* command is the *define* command. This is used when you have an alias type that you want to be treated as a first class citizen in the generated code. For example, let's say you have `type WidgetID string` in a `shared` package, and you want to used `shared.WidgetID` on a field within your bingen package. If you were to only use the `// @bingen:import:github.com/acme/widgets/pkg/shared` directive, then the generated code would treat `shared.WidgetID` as a `encoding.BinaryMarshaler` and `encoding.BinaryUnmarshaler` implementation, not as a simple string. In order to have the generated code treat `shared.WidgetID` as a string, you need to define the external alias type with the `define` directive:
+A more advanced version of the *import* command is the *define* command. This is used when you have an alias type that you want to be treated as a first class citizen in the generated code. For example, let's say you have `type WidgetID string` in a `shared` package, and you want to use `shared.WidgetID` on a field within your bingen package. If you were to only use the `// @bingen:import:github.com/acme/widgets/pkg/shared` directive, then the generated code would treat `shared.WidgetID` as a `encoding.BinaryMarshaler` and `encoding.BinaryUnmarshaler` implementation, not as a simple string. In order to have the generated code treat `shared.WidgetID` as a string, you need to define the external alias type with the `define` directive:
 
 Let's say we have the following `WidgetID` alias type in the `github.com/acme/widgets/pkg/shared` package:
 ```go 
@@ -205,7 +205,7 @@ func postProcessPerson(p *Person) {
 ```
 
 ##### Migration of Types
-Similar to the pre and post processing hooks for generated types, you can also specify a migration hook. A migration hook is used when a higher versioned struct unmarshals from a lesser versioned encoding. The most common used of this feature would be to load older data, make a one time change, then store out the new result data. This hook is enabled via the `generate` options:
+Similar to the pre and post processing hooks for generated types, you can also specify a migration hook. A migration hook is used when a higher versioned struct unmarshals from a lesser versioned encoding. The most common use of this feature would be to load older data, make a one time change, then store out the new result data. This hook is enabled via the `generate` options:
 
 ```go
 // @bingen:generate[stringtable,preprocess,postprocess,migrate]:Person
