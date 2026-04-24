@@ -174,10 +174,18 @@
 		which is incorrect
 	*/ -}}
 	{{- if .Type.Alias.IsPtr }}
-		{{- $aliasTarget := NewTypeCastedTarget .Type.Alias.TypeName .Target }}
+		{{- $innerTarget := .Target }}
+		{{- if .Type.IsPtr }}
+			{{- $innerTarget = $innerTarget.Deref }}
+		{{- end }}
+		{{- $aliasTarget := NewTypeCastedTarget .Type.Alias.TypeName $innerTarget }}
 		{{ template "writeType" (ToWriteParams .Context .Type.Alias $aliasTarget) }}
 	{{- else }}
-		{{- $aliasTarget := NewCastedTarget .Type.Alias.TypeName .Target }}
+		{{- $innerTarget := .Target }}
+		{{- if .Type.IsPtr }}
+			{{- $innerTarget = $innerTarget.Deref }}
+		{{- end }}
+		{{- $aliasTarget := NewCastedTarget .Type.Alias.TypeName $innerTarget }}
 		{{ template "writeType" (ToWriteParams .Context .Type.Alias $aliasTarget) }}
 	{{- end }}
 	// --- [end][write][alias]({{ .Type.Name }}) ---

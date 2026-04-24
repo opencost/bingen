@@ -90,7 +90,13 @@
     {{- else -}}
         {{- $target := (AsTarget .Context.NextVar) -}}
         {{ template "readType" (ToReadParams .Context .Type.Alias $target true) }}
-        {{ template "streamYieldSingle" (Map "Value" ($target.CastAs .Type.TypeName)) }}
+        {{- $value := ($target.CastAs .Type.Name) }}
+        {{- if .Type.IsPtr }}
+            {{- $tempVar := .Context.NextVar -}}
+            {{ $tempVar }} := {{ $value }}
+            {{- $value = (AsTarget $tempVar).Ref }}
+        {{- end }}
+        {{ template "streamYieldSingle" (Map "Value" $value) }}
     {{- end }}
     // --- [end][read][streaming-alias]({{ .Type.Name }}) ---
 {{- end -}}

@@ -215,16 +215,17 @@
  */}}
 {{- define "readAlias" -}}
     // --- [begin][read][alias]({{ .Type.Name }}) ---
-    {{- $aType := .Type.Name }}
-    {{- if .Type.IsPtr }}
-        {{ $aType = (printf "*%s" .Type.Name) }}
-    {{ end -}}
-
     {{- $varName := .Context.NextVar -}}
     {{- $varTarget := (AsTarget $varName) -}}
 
     {{ template "readType" (ToReadParams .Context .Type.Alias $varTarget true) }}
-    {{ .Target }} {{ template "SetOpFor" .Set }} {{ $aType }}({{ $varName }})
+    {{- if .Type.IsPtr }}
+        {{- $tempVar := .Context.NextVar -}}
+        {{ $tempVar }} := {{ .Type.Name }}({{ $varName }})
+        {{ .Target }} {{ template "SetOpFor" .Set }} &{{ $tempVar }}
+    {{- else }}
+        {{ .Target }} {{ template "SetOpFor" .Set }} {{ .Type.Name }}({{ $varName }})
+    {{- end }}
     // --- [end][read][alias]({{ .Type.Name }}) ---
 {{- end -}}
 

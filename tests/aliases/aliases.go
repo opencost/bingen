@@ -14,8 +14,8 @@ type ChildInfo *Info
 type OtherChildInfo []ChildInfo
 
 type Parent struct {
-	Name            shared.Name
-	Age             shared.Age
+	Name            *shared.Name
+	Age             *shared.Age
 	FirstChild      Child
 	FirstChildInfo  ChildInfo
 	Children        []Child
@@ -50,8 +50,8 @@ func NewGeneratedParent() *Parent {
 	}
 
 	return &Parent{
-		Name:            "Dad",
-		Age:             toPtr(51),
+		Name:            toPtr(shared.Name("Dad")),
+		Age:             toPtr(shared.Age(toPtr(51))),
 		FirstChild:      allChildren[0],
 		FirstChildInfo:  infos[0],
 		Children:        allChildren,

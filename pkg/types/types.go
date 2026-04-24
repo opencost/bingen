@@ -321,6 +321,13 @@ type AliasType struct {
 	Alias GenType
 }
 
+func (at *AliasType) CreatePtr() GenType {
+	return &AliasType{
+		BasicType: at.BasicType.CreatePtr().(*BasicType),
+		Alias:     at.Alias,
+	}
+}
+
 // InterfaceType represents an interface
 type InterfaceType struct {
 	*BasicType
