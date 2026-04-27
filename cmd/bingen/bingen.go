@@ -4,9 +4,11 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 
 	"github.com/opencost/bingen/pkg/generator"
 	"github.com/opencost/bingen/pkg/types"
@@ -59,6 +61,17 @@ func main() {
 		os.Exit(2)
 	}
 
+	// Reject package names that contain path separators or traversal: the package
+	// name is used to build the codec output path, and slashes/`..` would let a
+	// caller write outside the target directory.
+	if strings.ContainsAny(*packageName, `/\`) || strings.Contains(*packageName, "..") {
+		log.Fatalf("invalid -package value %q: must not contain path separators or '..'", *packageName)
+	}
+
+	if *version > math.MaxUint8 {
+		log.Fatalf("-version must be in range 0..255, got %d", *version)
+	}
+
 	if len(*buffer) == 0 {
 		s := DefaultBufferPackage
 		buffer = &s
@@ -80,15 +93,18 @@ func main() {
 
 	codecPath := path.Join(dir, fmt.Sprintf("%s_codecs.go", *packageName))
 	if fileExists(codecPath) {
-		os.Remove(codecPath)
+		if err := os.Remove(codecPath); err != nil {
+			log.Fatalf("failed to remove existing codec file %q: %s", codecPath, err)
+		}
 	}
 
 	defaultVersion := uint8(*version)
 
 	tc, err := types.LoadTypes(dir, *packageName, defaultVersion)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to parse @bingen annotations: %s", err)
-		return
+		log.Fatalf("failed to parse @bingen annotations: %s", err)
 	}
-	generator.Generate(dir, *packageName, *buffer, tc)
+	if err := generator.Generate(dir, *packageName, *buffer, tc); err != nil {
+		log.Fatalf("failed to generate codecs: %s", err)
+	}
 }

@@ -91,7 +91,14 @@ func ParseAnnotation(comment string) (*Annotation, bool) {
 
 	command := strings.TrimSpace(s[1])
 	opts := make(map[string]bool)
-	if strings.Contains(command, "[") && strings.Contains(command, "]") {
+	hasOpen := strings.Contains(command, "[")
+	hasClose := strings.Contains(command, "]")
+	if hasOpen != hasClose {
+		// Mismatched brackets — treat as not-an-annotation so we don't silently
+		// fold the bracketed remainder into the command name.
+		return nil, false
+	}
+	if hasOpen && hasClose {
 		o := strings.Index(command, "[")
 		c := strings.LastIndex(command, "]")
 

@@ -6,6 +6,9 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"maps"
+	"slices"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -443,12 +446,14 @@ func (tc *typeCollector) Types() []GenType {
 	return tc.collected
 }
 
-// Imports returns a slice of imports to include in the generated source
+// Imports returns a slice of imports to include in the generated source. The
+// list is sorted to keep generator output deterministic across runs.
 func (tc *typeCollector) Imports() []string {
-	im := []string{}
+	im := make([]string, 0, len(tc.imports))
 	for _, v := range tc.imports {
 		im = append(im, v)
 	}
+	sort.Strings(im)
 	return im
 }
 
@@ -603,7 +608,12 @@ func (tc *typeCollector) toGenType(t ast.Expr, selectorName string, isPtr bool) 
 		return rt
 	}
 
-	return BasicTypes[0]
+	// Reaching this point means we encountered an AST expression we don't know
+	// how to encode (function types, channel types, generic instantiations,
+	// etc.). Returning a silent fall-back used to produce a "bool" codec that
+	// compiled but corrupted data — fail loudly so the user knows what's
+	// missing.
+	panic(fmt.Errorf("bingen: unsupported AST expression %T at %v — file an issue if you need support for this type", t, t))
 }
 
 func findAnnotationSet(typeName string, annotations []meta.VersionSet) (meta.VersionSet, bool) {
@@ -631,8 +641,6 @@ func findTypes(file *ast.File, annotations []meta.VersionSet, defaultVersion uin
 		if !ok {
 			return true
 		}
-
-		fmt.Println("Found Type: ", t.Name.String())
 
 		// Set the default version if the annotation set has a 0 version
 		setVersion := annotationSet.Version()
@@ -678,7 +686,14 @@ func findFields(t *AnnotatedType) ([]*AnnotatedField, error) {
 					var err error
 					fieldOpts, err = toFieldOpts(a)
 					if err != nil {
-						errs = append(errs, fmt.Sprintf("[%s.%s] Failed to parse field annotation: %s\n", t.T.Name, f.Names[0], err))
+						// Embedded fields have no names, so guard f.Names[0]
+						// access; otherwise we'd panic while building an
+						// already-failing error message.
+						fieldName := "<embedded>"
+						if len(f.Names) > 0 {
+							fieldName = f.Names[0].Name
+						}
+						errs = append(errs, fmt.Sprintf("[%s.%s] Failed to parse field annotation: %s\n", t.T.Name, fieldName, err))
 					}
 				}
 			}
@@ -756,7 +771,7 @@ func LoadTypes(dir string, pkg string, defaultVersion uint8) (TypeCollection, er
 	fset := token.NewFileSet()
 	packages, err := parser.ParseDir(fset, dir, nil, parser.ParseComments)
 	if err != nil {
-		panic(fmt.Sprintf("Failed to parse: %s", err))
+		return nil, fmt.Errorf("bingen: failed to parse package directory %q: %w", dir, err)
 	}
 
 	annotations, err := meta.LoadAnnotations(packages, defaultVersion)
@@ -766,10 +781,18 @@ func LoadTypes(dir string, pkg string, defaultVersion uint8) (TypeCollection, er
 
 	typeCollector := NewTypeCollection(annotations)
 
-	for k, v := range packages {
-		fmt.Printf("Package: %s\n", k)
-		for kk, file := range v.Files {
-			fmt.Printf("File: %s\n", kk)
+	// Sort package and file keys so the order of type collection is deterministic
+	// across runs. Map iteration would otherwise produce different generated
+	// output ordering in a non-reproducible way.
+	pkgKeys := slices.Collect(maps.Keys(packages))
+	slices.Sort(pkgKeys)
+	for _, k := range pkgKeys {
+		v := packages[k]
+		fileKeys := slices.Collect(maps.Keys(v.Files))
+		slices.Sort(fileKeys)
+
+		for _, kk := range fileKeys {
+			file := v.Files[kk]
 
 			types := findTypes(file, annotations.VersionSets, defaultVersion)
 			for _, at := range types {

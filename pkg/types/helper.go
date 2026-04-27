@@ -5,9 +5,15 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"regexp"
 
 	"github.com/opencost/bingen/pkg/meta"
 )
+
+// goIdentifier matches a single valid Go identifier. Used to validate names
+// supplied via @bingen:define so we don't splice arbitrary text into a Go
+// source file we then re-parse.
+var goIdentifier = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // ParseDefined turns the bingen type definition into a go ast.TypeSpec by generating the type
 // definition code, running it through the go parser, and then extracting the parsed TypeSpec.
@@ -18,6 +24,14 @@ import (
 // requiring direct access to the code for that type. This is safe to allow because if the type
 // definition is wrong, then the resulting generated code will fail to compile.
 func ParseDefined(td *meta.TypeDefinition) (*ast.TypeSpec, error) {
+	if !goIdentifier.MatchString(td.Name) {
+		return nil, fmt.Errorf("bingen: define name %q is not a valid Go identifier", td.Name)
+	}
+
+	if _, err := parser.ParseExpr(td.Type); err != nil {
+		return nil, fmt.Errorf("bingen: define type %q is not a valid Go expression: %w", td.Type, err)
+	}
+
 	return ParseDecl(fmt.Sprintf("package %s; type %s %s", td.PackageSelector(), td.Name, td.Type))
 }
 

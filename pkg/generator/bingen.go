@@ -10,7 +10,19 @@ import (
 	"github.com/opencost/bingen/pkg/types"
 )
 
-func Generate(dir string, pkg string, bufferImport string, tc types.TypeCollection) {
+func Generate(dir string, pkg string, bufferImport string, tc types.TypeCollection) (err error) {
+	// Recover panics from template rendering or type-resolution code so callers
+	// see a normal error rather than a process crash.
+	defer func() {
+		if r := recover(); r != nil {
+			if e, ok := r.(error); ok {
+				err = fmt.Errorf("bingen: code generation panicked: %w", e)
+				return
+			}
+			err = fmt.Errorf("bingen: code generation panicked: %v", r)
+		}
+	}()
+
 	var out bytes.Buffer
 
 	ctxFactory := NewGeneratorContextFactory(ErrorHandler)
@@ -21,43 +33,39 @@ func Generate(dir string, pkg string, bufferImport string, tc types.TypeCollecti
 		return targetTypes[i].Name() < targetTypes[j].Name()
 	})
 
-	err := WriteSupportTemplate(&out, SupportParams{
+	if err = WriteSupportTemplate(&out, SupportParams{
 		Package:         pkg,
 		Imports:         tc.Imports(),
 		BufferImport:    bufferImport,
 		VersionSets:     tc.VersionSets(),
 		Types:           targetTypes,
 		StreamableTypes: toStreamableTypes(targetTypes),
-	})
-	if err != nil {
-		panic(err)
+	}); err != nil {
+		return fmt.Errorf("bingen: failed to write support template: %w", err)
 	}
 
 	for _, t := range targetTypes {
 		if st, ok := t.(*types.StructType); ok {
-			err = WriteMarshallerTemplate(&out, MarshallerParams{
+			if err = WriteMarshallerTemplate(&out, MarshallerParams{
 				Context: ctxFactory.NewContext(st.Opts),
 				Type:    t,
-			})
-			if err != nil {
-				panic(err)
+			}); err != nil {
+				return fmt.Errorf("bingen: failed to write marshaller for %s: %w", t.Name(), err)
 			}
 
-			err = WriteUnmarshallerTemplate(&out, UnmarshallerParams{
+			if err = WriteUnmarshallerTemplate(&out, UnmarshallerParams{
 				Context: ctxFactory.NewContext(st.Opts),
 				Type:    t,
-			})
-			if err != nil {
-				panic(err)
+			}); err != nil {
+				return fmt.Errorf("bingen: failed to write unmarshaller for %s: %w", t.Name(), err)
 			}
 
 			if st.Opts.IsStreamable {
-				err = WriteStreamerTemplate(&out, StreamParams{
+				if err = WriteStreamerTemplate(&out, StreamParams{
 					Context: ctxFactory.NewContext(st.Opts).WithErrorHandler(StreamErrorHandler),
 					Type:    t,
-				})
-				if err != nil {
-					panic(err)
+				}); err != nil {
+					return fmt.Errorf("bingen: failed to write streamer for %s: %w", t.Name(), err)
 				}
 			}
 		}
@@ -71,17 +79,17 @@ func Generate(dir string, pkg string, bufferImport string, tc types.TypeCollecti
 	if formatOn {
 		result, err = format.Source(out.Bytes())
 		if err != nil {
-			fmt.Println("Failed to format:", err)
-			return
+			return fmt.Errorf("bingen: failed to format generated source: %w", err)
 		}
 	} else {
 		result = out.Bytes()
 	}
 
-	err = os.WriteFile(fmt.Sprintf("%s/%s_codecs.go", dir, pkg), result, 0600)
-	if err != nil {
-		return
+	outPath := fmt.Sprintf("%s/%s_codecs.go", dir, pkg)
+	if err = os.WriteFile(outPath, result, 0600); err != nil {
+		return fmt.Errorf("bingen: failed to write codec file %q: %w", outPath, err)
 	}
+	return nil
 }
 
 func ErrorHandler(newErr string) string {
