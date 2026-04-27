@@ -13,6 +13,7 @@ package aliases
 
 import (
 	"fmt"
+	"github.com/opencost/bingen/tests/shared"
 	"io"
 	"iter"
 	"os"
@@ -20,8 +21,6 @@ import (
 	"strings"
 	"sync"
 	"unsafe"
-
-	"github.com/opencost/bingen/tests/shared"
 
 	util "github.com/opencost/bingen/pkg/util"
 )
@@ -355,6 +354,9 @@ type SliceStringTableReader struct {
 func NewSliceStringTableReaderFrom(buffer *util.Buffer) StringTableReader {
 	// table length
 	tl := buffer.ReadInt()
+	if tl < 0 || tl > buffer.Remaining() {
+		panic(fmt.Errorf("%s: invalid string table length: %d (remaining=%d)", GeneratorPackageName, tl, buffer.Remaining()))
+	}
 
 	var table []string
 	if tl > 0 {
@@ -436,6 +438,9 @@ func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string) StringTableRe
 
 	// table length
 	tl := buffer.ReadInt()
+	if tl < 0 {
+		panic(fmt.Errorf("%s: invalid string table length: %d", GeneratorPackageName, tl))
+	}
 
 	var refs []fileStringRef
 	if tl > 0 {
@@ -1142,6 +1147,9 @@ func (target *Parent) UnmarshalBinaryWithContext(ctx *DecodingContext) (err erro
 	} else {
 		// --- [begin][read][slice]([]Child) ---
 		s := buff.ReadInt() // slice len
+		if s < 0 || s > buff.Remaining() {
+			return fmt.Errorf("bingen: invalid slice length %d (remaining=%d)", s, buff.Remaining())
+		}
 		r := make([]Child, s)
 		for i := range s {
 			// --- [begin][read][alias](Child) ---
@@ -1173,6 +1181,9 @@ func (target *Parent) UnmarshalBinaryWithContext(ctx *DecodingContext) (err erro
 	} else {
 		// --- [begin][read][slice]([]ChildInfo) ---
 		cc := buff.ReadInt() // slice len
+		if cc < 0 || cc > buff.Remaining() {
+			return fmt.Errorf("bingen: invalid slice length %d (remaining=%d)", cc, buff.Remaining())
+		}
 		bb := make([]ChildInfo, cc)
 		for j := range cc {
 			// --- [begin][read][alias](ChildInfo) ---
@@ -1212,6 +1223,9 @@ func (target *Parent) UnmarshalBinaryWithContext(ctx *DecodingContext) (err erro
 	} else {
 		// --- [begin][read][slice]([]float64) ---
 		ll := buff.ReadInt() // slice len
+		if ll < 0 || ll > buff.Remaining() {
+			return fmt.Errorf("bingen: invalid slice length %d (remaining=%d)", ll, buff.Remaining())
+		}
 		hh := make([]float64, ll)
 		for ii := range ll {
 			var mm float64
@@ -1235,6 +1249,9 @@ func (target *Parent) UnmarshalBinaryWithContext(ctx *DecodingContext) (err erro
 	} else {
 		// --- [begin][read][map](map[string]int) ---
 		qq := buff.ReadInt() // map len
+		if qq < 0 || qq > buff.Remaining() {
+			return fmt.Errorf("bingen: invalid map length %d (remaining=%d)", qq, buff.Remaining())
+		}
 		pp := make(map[string]int, qq)
 		for range qq {
 			var v string
@@ -1269,6 +1286,9 @@ func (target *Parent) UnmarshalBinaryWithContext(ctx *DecodingContext) (err erro
 	} else {
 		// --- [begin][read][slice]([]*uint32) ---
 		yy := buff.ReadInt() // slice len
+		if yy < 0 || yy > buff.Remaining() {
+			return fmt.Errorf("bingen: invalid slice length %d (remaining=%d)", yy, buff.Remaining())
+		}
 		xx := make([]*uint32, yy)
 		for jj := range yy {
 			var aaa *uint32
@@ -1298,6 +1318,9 @@ func (target *Parent) UnmarshalBinaryWithContext(ctx *DecodingContext) (err erro
 	} else {
 		// --- [begin][read][slice]([][]map[string]*int) ---
 		eee := buff.ReadInt() // slice len
+		if eee < 0 || eee > buff.Remaining() {
+			return fmt.Errorf("bingen: invalid slice length %d (remaining=%d)", eee, buff.Remaining())
+		}
 		ddd := make([][]map[string]*int, eee)
 		for iii := range eee {
 			var fff []map[string]*int
@@ -1306,6 +1329,9 @@ func (target *Parent) UnmarshalBinaryWithContext(ctx *DecodingContext) (err erro
 			} else {
 				// --- [begin][read][slice]([]map[string]*int) ---
 				hhh := buff.ReadInt() // slice len
+				if hhh < 0 || hhh > buff.Remaining() {
+					return fmt.Errorf("bingen: invalid slice length %d (remaining=%d)", hhh, buff.Remaining())
+				}
 				ggg := make([]map[string]*int, hhh)
 				for jjj := range hhh {
 					var lll map[string]*int
@@ -1314,6 +1340,9 @@ func (target *Parent) UnmarshalBinaryWithContext(ctx *DecodingContext) (err erro
 					} else {
 						// --- [begin][read][map](map[string]*int) ---
 						nnn := buff.ReadInt() // map len
+						if nnn < 0 || nnn > buff.Remaining() {
+							return fmt.Errorf("bingen: invalid map length %d (remaining=%d)", nnn, buff.Remaining())
+						}
 						mmm := make(map[string]*int, nnn)
 						for range nnn {
 							var vv string
@@ -1533,6 +1562,11 @@ func (stream *ParentStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] {
 		} else {
 			// --- [begin][read][streaming-slice]([]Child) ---
 			r := buff.ReadInt() // slice len
+			if r < 0 || r > buff.Remaining() {
+				stream.err = fmt.Errorf("bingen: invalid slice length %d (remaining=%d)", r, buff.Remaining())
+				return
+
+			}
 			for i := range r {
 
 				// --- [begin][read][alias](Child) ---
@@ -1565,6 +1599,11 @@ func (stream *ParentStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] {
 		// --- [begin][read][streaming-alias](OtherChildInfo) ---
 		// --- [begin][read][streaming-slice]([]ChildInfo) ---
 		y := buff.ReadInt() // slice len
+		if y < 0 || y > buff.Remaining() {
+			stream.err = fmt.Errorf("bingen: invalid slice length %d (remaining=%d)", y, buff.Remaining())
+			return
+
+		}
 		for j := range y {
 
 			// --- [begin][read][alias](ChildInfo) ---
@@ -1603,6 +1642,11 @@ func (stream *ParentStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] {
 		// --- [begin][read][streaming-alias](shared.FloatList) ---
 		// --- [begin][read][streaming-slice]([]float64) ---
 		dd := buff.ReadInt() // slice len
+		if dd < 0 || dd > buff.Remaining() {
+			stream.err = fmt.Errorf("bingen: invalid slice length %d (remaining=%d)", dd, buff.Remaining())
+			return
+
+		}
 		for ii := range dd {
 
 			var ee float64
@@ -1623,6 +1667,11 @@ func (stream *ParentStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] {
 		// --- [begin][read][streaming-alias](shared.StrMap) ---
 		// --- [begin][read][streaming-map](map[string]int) ---
 		gg := buff.ReadInt() // map len
+		if gg < 0 || gg > buff.Remaining() {
+			stream.err = fmt.Errorf("bingen: invalid map length %d (remaining=%d)", gg, buff.Remaining())
+			return
+
+		}
 		for range gg {
 			var v string
 			var ll string
@@ -1654,6 +1703,11 @@ func (stream *ParentStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] {
 		// --- [begin][read][streaming-alias](shared.UIntPtrList) ---
 		// --- [begin][read][streaming-slice]([]*uint32) ---
 		oo := buff.ReadInt() // slice len
+		if oo < 0 || oo > buff.Remaining() {
+			stream.err = fmt.Errorf("bingen: invalid slice length %d (remaining=%d)", oo, buff.Remaining())
+			return
+
+		}
 		for jj := range oo {
 
 			var pp *uint32
@@ -1680,6 +1734,11 @@ func (stream *ParentStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] {
 		// --- [begin][read][streaming-alias](shared.DoubleSlice) ---
 		// --- [begin][read][streaming-slice]([][]map[string]*int) ---
 		rr := buff.ReadInt() // slice len
+		if rr < 0 || rr > buff.Remaining() {
+			stream.err = fmt.Errorf("bingen: invalid slice length %d (remaining=%d)", rr, buff.Remaining())
+			return
+
+		}
 		for iii := range rr {
 
 			var ss []map[string]*int
@@ -1688,6 +1747,11 @@ func (stream *ParentStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] {
 			} else {
 				// --- [begin][read][slice]([]map[string]*int) ---
 				uu := buff.ReadInt() // slice len
+				if uu < 0 || uu > buff.Remaining() {
+					stream.err = fmt.Errorf("bingen: invalid slice length %d (remaining=%d)", uu, buff.Remaining())
+					return
+
+				}
 				tt := make([]map[string]*int, uu)
 				for jjj := range uu {
 					var ww map[string]*int
@@ -1696,6 +1760,11 @@ func (stream *ParentStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] {
 					} else {
 						// --- [begin][read][map](map[string]*int) ---
 						yy := buff.ReadInt() // map len
+						if yy < 0 || yy > buff.Remaining() {
+							stream.err = fmt.Errorf("bingen: invalid map length %d (remaining=%d)", yy, buff.Remaining())
+							return
+
+						}
 						xx := make(map[string]*int, yy)
 						for range yy {
 							var vv string

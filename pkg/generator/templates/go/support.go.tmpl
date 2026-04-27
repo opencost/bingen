@@ -366,6 +366,9 @@ type SliceStringTableReader struct {
 func NewSliceStringTableReaderFrom(buffer *util.Buffer) StringTableReader {
 	// table length
 	tl := buffer.ReadInt()
+	if tl < 0 || tl > buffer.Remaining() {
+		panic(fmt.Errorf("%s: invalid string table length: %d (remaining=%d)", GeneratorPackageName, tl, buffer.Remaining()))
+	}
 
 	var table []string
 	if tl > 0 {
@@ -447,6 +450,9 @@ func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string) StringTableRe
 
 	// table length
 	tl := buffer.ReadInt()
+	if tl < 0 {
+		panic(fmt.Errorf("%s: invalid string table length: %d", GeneratorPackageName, tl))
+	}
 
 	var refs []fileStringRef
 	if tl > 0 {

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"os"
 	"unsafe"
 
 	"github.com/opencost/bingen/pkg/util/stringutil"
@@ -21,8 +20,9 @@ var NonPrimitiveTypeError error = errors.New("Type provided to read/write does n
 // Buffer is a utility type which implements a very basic binary protocol for
 // writing core go types.
 type Buffer struct {
-	b  *bufio.Reader
-	bw *bytes.Buffer
+	b   *bufio.Reader
+	bw  *bytes.Buffer
+	err error
 }
 
 // NewBuffer creates a new Buffer instance using LittleEndian ByteOrder.
@@ -138,16 +138,16 @@ func (b *Buffer) WriteFloat64(i float64) {
 	writeFloat64(b.bw, i)
 }
 
-// WriteString writes the string's length as a uint16 followed by the string contents.
+// WriteString writes the string's length as a uint32 followed by the string contents.
 func (b *Buffer) WriteString(i string) {
 	b.checkRO()
 	s := stringToBytes(i)
 
-	// string lengths are limited to uint16 - See ReadString()
-	if len(s) > math.MaxUint16 {
-		s = s[:math.MaxUint16]
+	// string lengths are limited to uint32 - See ReadString()
+	if uint64(len(s)) > math.MaxUint32 {
+		panic(fmt.Sprintf("bingen: string length %d exceeds uint32 max", len(s)))
 	}
-	writeUint16(b.bw, uint16(len(s)))
+	writeUint32(b.bw, uint32(len(s)))
 	b.bw.Write(s)
 }
 
@@ -159,17 +159,26 @@ func (b *Buffer) WriteBytes(bytes []byte) {
 
 // Bytes returns the unread portion of the underlying buffer storage. If the buffer was
 // created with an `io.Reader`, then the remaining unread bytes are drained into a byte
-// slice and returned.
+// slice and returned. A drain error is recorded and surfaced via Err().
 func (b *Buffer) Bytes() []byte {
 	if b.bw != nil {
 		return b.bw.Bytes()
 	}
 
 	bytes, err := io.ReadAll(b.b)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to read remaining bytes from Buffer: %s\n", err)
+	if err != nil && b.err == nil {
+		b.err = err
 	}
 	return bytes
+}
+
+// Err returns the first error encountered by an operation on the buffer that
+// previously had no way to surface a failure (notably the io.Reader-mode drain
+// in Bytes). Most Read*/Write* methods continue to be best-effort; callers
+// performing critical decoding should still check the higher-level error
+// returned by their own UnmarshalBinary path.
+func (b *Buffer) Err() error {
+	return b.err
 }
 
 func (b *Buffer) Peek(length int) ([]byte, error) {
@@ -342,16 +351,21 @@ func (b *Buffer) ReadFloat64() float64 {
 	return i
 }
 
-// ReadString reads a uint16 value from the buffer representing the string's length,
+// ReadString reads a uint32 value from the buffer representing the string's length,
 // then uses the length to extract the exact length []byte representing the string.
 func (b *Buffer) ReadString() string {
-	var l uint16
+	var l uint32
 	if b.bw != nil {
-		readUint16(b.bw, &l)
+		readUint32(b.bw, &l)
+		// Bound the requested length against unread bytes to prevent a crafted
+		// payload from triggering a huge allocation.
+		if uint64(l) > uint64(b.bw.Len()) {
+			return ""
+		}
 		return bytesToString(b.bw.Next(int(l)))
 	}
 
-	readBuffUint16(b.b, &l)
+	readBuffUint32(b.b, &l)
 
 	bytes := bytePool.Get(int(l))
 	defer bytePool.Put(bytes)
@@ -366,7 +380,15 @@ func (b *Buffer) ReadString() string {
 
 // ReadBytes reads the specified length from the buffer and returns the byte slice.
 func (b *Buffer) ReadBytes(length int) []byte {
+	if length <= 0 {
+		return nil
+	}
+
 	if b.bw != nil {
+		// Guard against a length larger than what's actually available.
+		if length > b.bw.Len() {
+			return nil
+		}
 		return b.bw.Next(length)
 	}
 
@@ -377,6 +399,18 @@ func (b *Buffer) ReadBytes(length int) []byte {
 	}
 
 	return bytes
+}
+
+// Remaining returns the number of unread bytes available in the buffer. For
+// reader-mode buffers this returns the bufio.Reader's currently-buffered byte
+// count, which is a lower bound on what's available without performing more
+// I/O. Callers should treat the result as a sanity bound for length-prefix
+// validation, not an exact remaining size.
+func (b *Buffer) Remaining() int {
+	if b.bw != nil {
+		return b.bw.Len()
+	}
+	return b.b.Buffered()
 }
 
 // bytesAsString converts a []byte into a string in place. Note that you should use this helper

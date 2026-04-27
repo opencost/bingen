@@ -33,14 +33,14 @@ const (
 	// table (where each index is encoded as a string entry in the resource
 	BinaryTagStringTable string = "BGST"
 
-	// DefaultCodecVersion is used for any resources listed in the Default version set
-	DefaultCodecVersion uint8 = 16
+	// AllocationCodecVersion is used for any resources listed in the Allocation version set
+	AllocationCodecVersion uint8 = 16
 
 	// AssetsCodecVersion is used for any resources listed in the Assets version set
 	AssetsCodecVersion uint8 = 16
 
-	// AllocationCodecVersion is used for any resources listed in the Allocation version set
-	AllocationCodecVersion uint8 = 16
+	// DefaultCodecVersion is used for any resources listed in the Default version set
+	DefaultCodecVersion uint8 = 16
 )
 
 //--------------------------------------------------------------------------
@@ -379,6 +379,9 @@ type SliceStringTableReader struct {
 func NewSliceStringTableReaderFrom(buffer *util.Buffer) StringTableReader {
 	// table length
 	tl := buffer.ReadInt()
+	if tl < 0 || tl > buffer.Remaining() {
+		panic(fmt.Errorf("%s: invalid string table length: %d (remaining=%d)", GeneratorPackageName, tl, buffer.Remaining()))
+	}
 
 	var table []string
 	if tl > 0 {
@@ -460,6 +463,9 @@ func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string) StringTableRe
 
 	// table length
 	tl := buffer.ReadInt()
+	if tl < 0 {
+		panic(fmt.Errorf("%s: invalid string table length: %d", GeneratorPackageName, tl))
+	}
 
 	var refs []fileStringRef
 	if tl > 0 {
@@ -997,6 +1003,9 @@ func (target *Allocation) UnmarshalBinaryWithContext(ctx *DecodingContext) (err 
 	} else {
 		// --- [begin][read][map](map[PVKey]*PVAllocation) ---
 		gg := buff.ReadInt() // map len
+		if gg < 0 || gg > buff.Remaining() {
+			return fmt.Errorf("bingen: invalid map length %d (remaining=%d)", gg, buff.Remaining())
+		}
 		ff := make(map[PVKey]*PVAllocation, gg)
 		for range gg {
 
@@ -1408,6 +1417,9 @@ func (target *AllocationProperties) UnmarshalBinaryWithContext(ctx *DecodingCont
 	} else {
 		// --- [begin][read][slice]([]string) ---
 		bb := buff.ReadInt() // slice len
+		if bb < 0 || bb > buff.Remaining() {
+			return fmt.Errorf("bingen: invalid slice length %d (remaining=%d)", bb, buff.Remaining())
+		}
 		aa := make([]string, bb)
 		for i := range bb {
 			var cc string
@@ -1445,6 +1457,9 @@ func (target *AllocationProperties) UnmarshalBinaryWithContext(ctx *DecodingCont
 	} else {
 		// --- [begin][read][map](map[string]string) ---
 		oo := buff.ReadInt() // map len
+		if oo < 0 || oo > buff.Remaining() {
+			return fmt.Errorf("bingen: invalid map length %d (remaining=%d)", oo, buff.Remaining())
+		}
 		nn := make(map[string]string, oo)
 		for range oo {
 			var v string
@@ -1486,6 +1501,9 @@ func (target *AllocationProperties) UnmarshalBinaryWithContext(ctx *DecodingCont
 	} else {
 		// --- [begin][read][map](map[string]string) ---
 		yy := buff.ReadInt() // map len
+		if yy < 0 || yy > buff.Remaining() {
+			return fmt.Errorf("bingen: invalid map length %d (remaining=%d)", yy, buff.Remaining())
+		}
 		xx := make(map[string]string, yy)
 		for range yy {
 			var vv string
@@ -1753,6 +1771,9 @@ func (target *AllocationSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (e
 	} else {
 		// --- [begin][read][map](map[string]*Allocation) ---
 		b := buff.ReadInt() // map len
+		if b < 0 || b > buff.Remaining() {
+			return fmt.Errorf("bingen: invalid map length %d (remaining=%d)", b, buff.Remaining())
+		}
 		a := make(map[string]*Allocation, b)
 		for range b {
 			var v string
@@ -1793,6 +1814,9 @@ func (target *AllocationSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (e
 	} else {
 		// --- [begin][read][map](map[string]bool) ---
 		h := buff.ReadInt() // map len
+		if h < 0 || h > buff.Remaining() {
+			return fmt.Errorf("bingen: invalid map length %d (remaining=%d)", h, buff.Remaining())
+		}
 		g := make(map[string]bool, h)
 		for range h {
 			var vv string
@@ -1822,6 +1846,9 @@ func (target *AllocationSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (e
 	} else {
 		// --- [begin][read][map](map[string]bool) ---
 		q := buff.ReadInt() // map len
+		if q < 0 || q > buff.Remaining() {
+			return fmt.Errorf("bingen: invalid map length %d (remaining=%d)", q, buff.Remaining())
+		}
 		p := make(map[string]bool, q)
 		for range q {
 			var vvv string
@@ -1871,6 +1898,9 @@ func (target *AllocationSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (e
 	} else {
 		// --- [begin][read][slice]([]string) ---
 		cc := buff.ReadInt() // slice len
+		if cc < 0 || cc > buff.Remaining() {
+			return fmt.Errorf("bingen: invalid slice length %d (remaining=%d)", cc, buff.Remaining())
+		}
 		bb := make([]string, cc)
 		for i := range cc {
 			var dd string
@@ -1896,6 +1926,9 @@ func (target *AllocationSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (e
 	} else {
 		// --- [begin][read][slice]([]string) ---
 		ll := buff.ReadInt() // slice len
+		if ll < 0 || ll > buff.Remaining() {
+			return fmt.Errorf("bingen: invalid slice length %d (remaining=%d)", ll, buff.Remaining())
+		}
 		hh := make([]string, ll)
 		for j := range ll {
 			var mm string
@@ -1982,6 +2015,11 @@ func (stream *AllocationSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVa
 		} else {
 			// --- [begin][read][streaming-map](map[string]*Allocation) ---
 			a := buff.ReadInt() // map len
+			if a < 0 || a > buff.Remaining() {
+				stream.err = fmt.Errorf("bingen: invalid map length %d (remaining=%d)", a, buff.Remaining())
+				return
+
+			}
 			for range a {
 				var v string
 				var c string
@@ -2031,6 +2069,11 @@ func (stream *AllocationSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVa
 		} else {
 			// --- [begin][read][streaming-map](map[string]bool) ---
 			f := buff.ReadInt() // map len
+			if f < 0 || f > buff.Remaining() {
+				stream.err = fmt.Errorf("bingen: invalid map length %d (remaining=%d)", f, buff.Remaining())
+				return
+
+			}
 			for range f {
 				var vv string
 				var h string
@@ -2066,6 +2109,11 @@ func (stream *AllocationSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVa
 		} else {
 			// --- [begin][read][streaming-map](map[string]bool) ---
 			n := buff.ReadInt() // map len
+			if n < 0 || n > buff.Remaining() {
+				stream.err = fmt.Errorf("bingen: invalid map length %d (remaining=%d)", n, buff.Remaining())
+				return
+
+			}
 			for range n {
 				var vvv string
 				var p string
@@ -2140,6 +2188,11 @@ func (stream *AllocationSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVa
 		} else {
 			// --- [begin][read][streaming-slice]([]string) ---
 			aa := buff.ReadInt() // slice len
+			if aa < 0 || aa > buff.Remaining() {
+				stream.err = fmt.Errorf("bingen: invalid slice length %d (remaining=%d)", aa, buff.Remaining())
+				return
+
+			}
 			for i := range aa {
 
 				var bb string
@@ -2172,6 +2225,11 @@ func (stream *AllocationSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVa
 		} else {
 			// --- [begin][read][streaming-slice]([]string) ---
 			ff := buff.ReadInt() // slice len
+			if ff < 0 || ff > buff.Remaining() {
+				stream.err = fmt.Errorf("bingen: invalid slice length %d (remaining=%d)", ff, buff.Remaining())
+				return
+
+			}
 			for j := range ff {
 
 				var gg string
@@ -2329,6 +2387,9 @@ func (target *AllocationSetRange) UnmarshalBinaryWithContext(ctx *DecodingContex
 	} else {
 		// --- [begin][read][slice]([]*AllocationSet) ---
 		b := buff.ReadInt() // slice len
+		if b < 0 || b > buff.Remaining() {
+			return fmt.Errorf("bingen: invalid slice length %d (remaining=%d)", b, buff.Remaining())
+		}
 		a := make([]*AllocationSet, b)
 		for i := range b {
 			var c *AllocationSet
@@ -2541,6 +2602,9 @@ func (target *Any) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) 
 	} else {
 		// --- [begin][read][map](map[string]string) ---
 		c := buff.ReadInt() // map len
+		if c < 0 || c > buff.Remaining() {
+			return fmt.Errorf("bingen: invalid map length %d (remaining=%d)", c, buff.Remaining())
+		}
 		b := make(map[string]string, c)
 		for range c {
 			var v string
@@ -3081,6 +3145,9 @@ func (target *AssetSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (err er
 	} else {
 		// --- [begin][read][slice]([]string) ---
 		b := buff.ReadInt() // slice len
+		if b < 0 || b > buff.Remaining() {
+			return fmt.Errorf("bingen: invalid slice length %d (remaining=%d)", b, buff.Remaining())
+		}
 		a := make([]string, b)
 		for i := range b {
 			var c string
@@ -3106,6 +3173,9 @@ func (target *AssetSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (err er
 	} else {
 		// --- [begin][read][map](map[string]Asset) ---
 		h := buff.ReadInt() // map len
+		if h < 0 || h > buff.Remaining() {
+			return fmt.Errorf("bingen: invalid map length %d (remaining=%d)", h, buff.Remaining())
+		}
 		g := make(map[string]Asset, h)
 		for range h {
 			var v string
@@ -3176,6 +3246,9 @@ func (target *AssetSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (err er
 	} else {
 		// --- [begin][read][slice]([]string) ---
 		x := buff.ReadInt() // slice len
+		if x < 0 || x > buff.Remaining() {
+			return fmt.Errorf("bingen: invalid slice length %d (remaining=%d)", x, buff.Remaining())
+		}
 		w := make([]string, x)
 		for j := range x {
 			var y string
@@ -3201,6 +3274,9 @@ func (target *AssetSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (err er
 	} else {
 		// --- [begin][read][slice]([]string) ---
 		ee := buff.ReadInt() // slice len
+		if ee < 0 || ee > buff.Remaining() {
+			return fmt.Errorf("bingen: invalid slice length %d (remaining=%d)", ee, buff.Remaining())
+		}
 		dd := make([]string, ee)
 		for ii := range ee {
 			var ff string
@@ -3290,6 +3366,11 @@ func (stream *AssetSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] 
 		} else {
 			// --- [begin][read][streaming-slice]([]string) ---
 			a := buff.ReadInt() // slice len
+			if a < 0 || a > buff.Remaining() {
+				stream.err = fmt.Errorf("bingen: invalid slice length %d (remaining=%d)", a, buff.Remaining())
+				return
+
+			}
 			for i := range a {
 
 				var b string
@@ -3322,6 +3403,11 @@ func (stream *AssetSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] 
 		} else {
 			// --- [begin][read][streaming-map](map[string]Asset) ---
 			f := buff.ReadInt() // map len
+			if f < 0 || f > buff.Remaining() {
+				stream.err = fmt.Errorf("bingen: invalid map length %d (remaining=%d)", f, buff.Remaining())
+				return
+
+			}
 			for range f {
 				var v string
 				var h string
@@ -3424,6 +3510,11 @@ func (stream *AssetSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] 
 		} else {
 			// --- [begin][read][streaming-slice]([]string) ---
 			w := buff.ReadInt() // slice len
+			if w < 0 || w > buff.Remaining() {
+				stream.err = fmt.Errorf("bingen: invalid slice length %d (remaining=%d)", w, buff.Remaining())
+				return
+
+			}
 			for j := range w {
 
 				var x string
@@ -3456,6 +3547,11 @@ func (stream *AssetSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] 
 		} else {
 			// --- [begin][read][streaming-slice]([]string) ---
 			cc := buff.ReadInt() // slice len
+			if cc < 0 || cc > buff.Remaining() {
+				stream.err = fmt.Errorf("bingen: invalid slice length %d (remaining=%d)", cc, buff.Remaining())
+				return
+
+			}
 			for ii := range cc {
 
 				var dd string
@@ -3613,6 +3709,9 @@ func (target *AssetSetRange) UnmarshalBinaryWithContext(ctx *DecodingContext) (e
 	} else {
 		// --- [begin][read][slice]([]*AssetSet) ---
 		b := buff.ReadInt() // slice len
+		if b < 0 || b > buff.Remaining() {
+			return fmt.Errorf("bingen: invalid slice length %d (remaining=%d)", b, buff.Remaining())
+		}
 		a := make([]*AssetSet, b)
 		for i := range b {
 			var c *AssetSet
@@ -3944,6 +4043,9 @@ func (target *Cloud) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error
 	} else {
 		// --- [begin][read][map](map[string]string) ---
 		c := buff.ReadInt() // map len
+		if c < 0 || c > buff.Remaining() {
+			return fmt.Errorf("bingen: invalid map length %d (remaining=%d)", c, buff.Remaining())
+		}
 		b := make(map[string]string, c)
 		for range c {
 			var v string
@@ -4192,6 +4294,9 @@ func (target *ClusterManagement) UnmarshalBinaryWithContext(ctx *DecodingContext
 	} else {
 		// --- [begin][read][map](map[string]string) ---
 		c := buff.ReadInt() // map len
+		if c < 0 || c > buff.Remaining() {
+			return fmt.Errorf("bingen: invalid map length %d (remaining=%d)", c, buff.Remaining())
+		}
 		b := make(map[string]string, c)
 		for range c {
 			var v string
@@ -4451,6 +4556,9 @@ func (target *Disk) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error)
 	} else {
 		// --- [begin][read][map](map[string]string) ---
 		c := buff.ReadInt() // map len
+		if c < 0 || c > buff.Remaining() {
+			return fmt.Errorf("bingen: invalid map length %d (remaining=%d)", c, buff.Remaining())
+		}
 		b := make(map[string]string, c)
 		for range c {
 			var v string
@@ -4755,6 +4863,9 @@ func (target *LoadBalancer) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 	} else {
 		// --- [begin][read][map](map[string]string) ---
 		d := buff.ReadInt() // map len
+		if d < 0 || d > buff.Remaining() {
+			return fmt.Errorf("bingen: invalid map length %d (remaining=%d)", d, buff.Remaining())
+		}
 		c := make(map[string]string, d)
 		for range d {
 			var v string
@@ -5021,6 +5132,9 @@ func (target *Network) UnmarshalBinaryWithContext(ctx *DecodingContext) (err err
 	} else {
 		// --- [begin][read][map](map[string]string) ---
 		d := buff.ReadInt() // map len
+		if d < 0 || d > buff.Remaining() {
+			return fmt.Errorf("bingen: invalid map length %d (remaining=%d)", d, buff.Remaining())
+		}
 		c := make(map[string]string, d)
 		for range d {
 			var v string
@@ -5339,6 +5453,9 @@ func (target *Node) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error)
 	} else {
 		// --- [begin][read][map](map[string]string) ---
 		d := buff.ReadInt() // map len
+		if d < 0 || d > buff.Remaining() {
+			return fmt.Errorf("bingen: invalid map length %d (remaining=%d)", d, buff.Remaining())
+		}
 		c := make(map[string]string, d)
 		for range d {
 			var v string
@@ -5994,6 +6111,9 @@ func (target *SharedAsset) UnmarshalBinaryWithContext(ctx *DecodingContext) (err
 	} else {
 		// --- [begin][read][map](map[string]string) ---
 		d := buff.ReadInt() // map len
+		if d < 0 || d > buff.Remaining() {
+			return fmt.Errorf("bingen: invalid map length %d (remaining=%d)", d, buff.Remaining())
+		}
 		c := make(map[string]string, d)
 		for range d {
 			var v string

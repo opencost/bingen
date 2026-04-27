@@ -1,6 +1,16 @@
 # bingen
 Binary Codec Generator for annotated structs in go.
 
+### Wire format
+
+Bingen v0.2 introduces breaking changes to the on-the-wire format from v0.1:
+
+- `int` / `uint` are now encoded as 8 bytes (previously 4). Values outside the 32-bit range are no longer silently truncated.
+- `string` length prefixes are now `uint32` (previously `uint16`). Strings larger than 64 KiB are no longer silently truncated.
+- Slice, map, and string-table length prefixes are validated against the buffer's remaining bytes during unmarshal, rejecting hostile payloads that would otherwise trigger huge allocations.
+
+Binary data produced by v0.1.x cannot be read by v0.2.x and vice versa. Regenerate codecs with `bingen` after upgrading.
+
 ### Install
 Using an ssh-agent and git, issue a global config update:
 ```bash

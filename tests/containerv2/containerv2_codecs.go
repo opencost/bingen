@@ -352,6 +352,9 @@ type SliceStringTableReader struct {
 func NewSliceStringTableReaderFrom(buffer *util.Buffer) StringTableReader {
 	// table length
 	tl := buffer.ReadInt()
+	if tl < 0 || tl > buffer.Remaining() {
+		panic(fmt.Errorf("%s: invalid string table length: %d (remaining=%d)", GeneratorPackageName, tl, buffer.Remaining()))
+	}
 
 	var table []string
 	if tl > 0 {
@@ -433,6 +436,9 @@ func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string) StringTableRe
 
 	// table length
 	tl := buffer.ReadInt()
+	if tl < 0 {
+		panic(fmt.Errorf("%s: invalid string table length: %d", GeneratorPackageName, tl))
+	}
 
 	var refs []fileStringRef
 	if tl > 0 {
@@ -762,6 +768,9 @@ func (target *Container) UnmarshalBinaryWithContext(ctx *DecodingContext) (err e
 	} else {
 		// --- [begin][read][slice]([]string) ---
 		e := buff.ReadInt() // slice len
+		if e < 0 || e > buff.Remaining() {
+			return fmt.Errorf("bingen: invalid slice length %d (remaining=%d)", e, buff.Remaining())
+		}
 		d := make([]string, e)
 		for i := range e {
 			var f string
@@ -890,6 +899,11 @@ func (stream *ContainerStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue]
 		} else {
 			// --- [begin][read][streaming-slice]([]string) ---
 			e := buff.ReadInt() // slice len
+			if e < 0 || e > buff.Remaining() {
+				stream.err = fmt.Errorf("bingen: invalid slice length %d (remaining=%d)", e, buff.Remaining())
+				return
+
+			}
 			for i := range e {
 
 				var f string

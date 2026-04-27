@@ -88,7 +88,10 @@
     {{- $loopVar := .Context.NextLoopVar }}
     {{- $innerVar := .Context.NextVar -}}
 
-    {{ $lenVar }} := buff.ReadInt() // slice len 
+    {{ $lenVar }} := buff.ReadInt() // slice len
+    if {{ $lenVar }} < 0 || {{ $lenVar }} > buff.Remaining() {
+        {{ .Context.HandleError (printf "fmt.Errorf(\"bingen: invalid slice length %%d (remaining=%%d)\", %s, buff.Remaining())" $lenVar) }}
+    }
     {{ $sliceVar }} := make({{ .Type.Name }}, {{ $lenVar }})
     for {{ $loopVar }} := range {{ $lenVar }} {
         {{- $innerTarget := AsTarget $innerVar -}}
@@ -110,7 +113,10 @@
     {{- $keyVar := .Context.NextMapVar }}
     {{- $valVar := .Context.NextMapVar -}}
 
-    {{ $lenVar }} := buff.ReadInt() // map len 
+    {{ $lenVar }} := buff.ReadInt() // map len
+    if {{ $lenVar }} < 0 || {{ $lenVar }} > buff.Remaining() {
+        {{ .Context.HandleError (printf "fmt.Errorf(\"bingen: invalid map length %%d (remaining=%%d)\", %s, buff.Remaining())" $lenVar) }}
+    }
     {{ $mapVar }} := make(map[{{ .Type.KeyType.TypeName }}]{{ .Type.ValueType.TypeName }}, {{ $lenVar }})
     for range {{ $lenVar }} {
         {{- $keyTarget := AsTarget $keyVar -}}
@@ -244,10 +250,10 @@
 
         {{/* types.BasicType */ -}}
         {{- if le .Type.Code 13 -}}
-            {{ .Target }} = {{ ToDefaultValue .Type.Code $defaultValue }} // default 
+            {{ .Target }} = {{ ToDefaultValue .Type.Code $defaultValue }} // default
         {{- else -}}
             {{- if ne $defaultValue "" -}}
-                {{ .Target }} = {{ $defaultValue }} // default 
+                {{ .Target }} = {{ ToRawDefault $defaultValue }} // default
             {{- end }}
         {{- end }}
     {{- end }}

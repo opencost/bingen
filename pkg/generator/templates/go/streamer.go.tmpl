@@ -39,7 +39,10 @@
     {{- $loopVar := .Context.NextLoopVar }}
     {{- $innerVar := .Context.NextVar -}}
 
-    {{ $lenVar }} := buff.ReadInt() // slice len 
+    {{ $lenVar }} := buff.ReadInt() // slice len
+    if {{ $lenVar }} < 0 || {{ $lenVar }} > buff.Remaining() {
+        {{ .Context.HandleError (printf "fmt.Errorf(\"bingen: invalid slice length %%d (remaining=%%d)\", %s, buff.Remaining())" $lenVar) }}
+    }
     for {{ $loopVar }} := range {{ $lenVar }} {
         {{- $target := (AsTarget $innerVar) }}
         {{ template "readType" (ToReadParams .Context .Type.InnerType $target true) }}
@@ -59,7 +62,10 @@
     {{- $keyVar := .Context.NextMapVar }}
     {{- $valVar := .Context.NextMapVar -}}
 
-    {{ $lenVar }} := buff.ReadInt() // map len 
+    {{ $lenVar }} := buff.ReadInt() // map len
+    if {{ $lenVar }} < 0 || {{ $lenVar }} > buff.Remaining() {
+        {{ .Context.HandleError (printf "fmt.Errorf(\"bingen: invalid map length %%d (remaining=%%d)\", %s, buff.Remaining())" $lenVar) }}
+    }
     for range {{ $lenVar }} {
         {{- $keyTarget := (AsTarget $keyVar) }}
         {{- $valTarget := (AsTarget $valVar) -}}
@@ -118,12 +124,12 @@
         {{/* types.BasicType */ -}}
         {{- if le .Type.Code 13 -}}
             {{- $targetVar := .Context.NextVar -}}
-            var {{ $targetVar }} {{ .Type.TypeName }} = {{ ToDefaultValue .Type.Code $defaultValue }} // default 
+            var {{ $targetVar }} {{ .Type.TypeName }} = {{ ToDefaultValue .Type.Code $defaultValue }} // default
             {{ template "streamYieldSingle" (Map "Value" $targetVar) }}
         {{- else -}}
             {{- if ne $defaultValue "" -}}
                 {{- $targetVar := .Context.NextVar -}}
-                var {{ $targetVar }} {{ .Type.TypeName }} = {{ $defaultValue }} // default 
+                var {{ $targetVar }} {{ .Type.TypeName }} = {{ ToRawDefault $defaultValue }} // default
                 {{ template "streamYieldSingle" (Map "Value" $targetVar) }}
             {{- end }}
         {{- end }}
