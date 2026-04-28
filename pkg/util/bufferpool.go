@@ -6,9 +6,13 @@ import (
 	"sync"
 )
 
-// bufferPool holds "tiered" []byte `sync.Pool` instances by capacity up to math.MaxUint16.
-// Slices are stored as `*[]byte` so that Put doesn't allocate an interface wrapper
-// for a non-pointer-typed value on every call.
+// bufferPool holds "tiered" []byte `sync.Pool` instances by capacity up to
+// math.MaxUint16. Slices are stored as plain []byte: an earlier draft used
+// *[]byte to avoid the interface boxing of a slice header inside any, but
+// because Put has no original *[]byte to recycle it constructs a new one
+// (`&full`) on every call which escapes to the heap. That allocates a slice
+// header per Put just like the boxing path would, so the indirection bought
+// nothing. See the discussion on PR #7.
 type bufferPool struct {
 	pools [17]sync.Pool
 }
@@ -19,8 +23,7 @@ func newBufferPool() *bufferPool {
 	for i := 0; i < 17; i++ {
 		length := 1 << i
 		bp.pools[i].New = func() any {
-			buf := make([]byte, length)
-			return &buf
+			return make([]byte, length)
 		}
 	}
 	return bp
@@ -56,8 +59,7 @@ func (bp *bufferPool) Get(length int) []byte {
 	}
 
 	i := poolIndex(length)
-	bufp := bp.pools[i].Get().(*[]byte)
-	buf := *bufp
+	buf := bp.pools[i].Get().([]byte)
 	return buf[:length]
 }
 
@@ -68,6 +70,5 @@ func (bp *bufferPool) Put(buf []byte) {
 	}
 
 	i := putIndex(capacity)
-	full := buf[:capacity]
-	bp.pools[i].Put(&full)
+	bp.pools[i].Put(buf[:cap(buf)])
 }

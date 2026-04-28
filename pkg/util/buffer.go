@@ -375,8 +375,9 @@ func (b *Buffer) ReadFloat64() float64 {
 // length is also bounded by the unread byte count. In reader-mode the
 // underlying read will fail naturally if the stream is short; the bufio.Reader's
 // incidental buffer size is not a reliable bound and would falsely reject
-// valid large strings. On rejection an empty string is returned and the error
-// is recorded on Buffer.Err().
+// valid large strings. On any rejection or read failure an empty string is
+// returned and the corresponding error is recorded on Buffer.Err() so callers
+// can distinguish corruption from a legitimate empty string.
 func (b *Buffer) ReadString() string {
 	var l uint32
 	if b.bw != nil {
@@ -388,6 +389,9 @@ func (b *Buffer) ReadString() string {
 			return ""
 		}
 		if uint64(l) > uint64(b.bw.Len()) {
+			if b.err == nil {
+				b.err = fmt.Errorf("%w: ReadString wants %d bytes, only %d remaining", io.ErrUnexpectedEOF, l, b.bw.Len())
+			}
 			return ""
 		}
 		return bytesToString(b.bw.Next(int(l)))
@@ -406,6 +410,9 @@ func (b *Buffer) ReadString() string {
 
 	_, err := readBuffFull(b.b, bytes)
 	if err != nil {
+		if b.err == nil {
+			b.err = fmt.Errorf("ReadString: %w", err)
+		}
 		return ""
 	}
 
@@ -413,14 +420,18 @@ func (b *Buffer) ReadString() string {
 }
 
 // ReadBytes reads the specified length from the buffer and returns the byte slice.
+// On rejection (length larger than available bytes) or read failure, nil/zero
+// is returned and the error is recorded on Buffer.Err().
 func (b *Buffer) ReadBytes(length int) []byte {
 	if length <= 0 {
 		return nil
 	}
 
 	if b.bw != nil {
-		// Guard against a length larger than what's actually available.
 		if length > b.bw.Len() {
+			if b.err == nil {
+				b.err = fmt.Errorf("%w: ReadBytes wants %d bytes, only %d remaining", io.ErrUnexpectedEOF, length, b.bw.Len())
+			}
 			return nil
 		}
 		return b.bw.Next(length)
@@ -429,6 +440,9 @@ func (b *Buffer) ReadBytes(length int) []byte {
 	bytes := make([]byte, length)
 	_, err := readBuffFull(b.b, bytes)
 	if err != nil {
+		if b.err == nil {
+			b.err = fmt.Errorf("ReadBytes: %w", err)
+		}
 		return bytes
 	}
 

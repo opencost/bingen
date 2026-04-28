@@ -137,6 +137,43 @@ func TestReadStringRejectsHugeLengthReaderMode(t *testing.T) {
 	}
 }
 
+// TestReadStringTruncatedByteBuffer verifies that a payload whose declared
+// length exceeds the unread bytes (in byte-buffer mode) is rejected by
+// returning "" AND records io.ErrUnexpectedEOF on Err(), so the caller can
+// distinguish corruption from a legitimate empty string.
+func TestReadStringTruncatedByteBuffer(t *testing.T) {
+	// uint32 length of 100 with no following payload.
+	var buf bytes.Buffer
+	var hdr [4]byte
+	binary.LittleEndian.PutUint32(hdr[:], 100)
+	buf.Write(hdr[:])
+
+	r := NewBufferFromBytes(buf.Bytes())
+	got := r.ReadString()
+	if got != "" {
+		t.Errorf("ReadString on truncated payload should return \"\", got %q", got)
+	}
+	if !errors.Is(r.Err(), io.ErrUnexpectedEOF) {
+		t.Errorf("Err() = %v, want io.ErrUnexpectedEOF", r.Err())
+	}
+}
+
+// TestReadStringTruncatedReaderMode verifies the reader-mode counterpart:
+// readBuffFull failure now records the wrapped error on Err().
+func TestReadStringTruncatedReaderMode(t *testing.T) {
+	var hdr [4]byte
+	binary.LittleEndian.PutUint32(hdr[:], 100) // claims 100 bytes
+	// Provide only the header — no payload follows.
+	r := NewBufferFromReader(bytes.NewReader(hdr[:]))
+	got := r.ReadString()
+	if got != "" {
+		t.Errorf("ReadString on truncated reader should return \"\", got %q", got)
+	}
+	if r.Err() == nil {
+		t.Errorf("Err() should be non-nil on truncated reader, got nil")
+	}
+}
+
 // TestReadStringAtCap verifies that a string exactly at MaxStringLength bytes
 // in byte-buffer mode round-trips successfully (the cap is "<=" allowed).
 func TestReadStringAtCap(t *testing.T) {

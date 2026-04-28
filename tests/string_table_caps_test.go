@@ -13,9 +13,9 @@ import (
 // table header advertises a length above MaxStringTableEntries and verifies
 // the unmarshal fails with a normal error rather than panicking the host.
 //
-// This exercises the path peatey called out: NewSliceStringTableReaderFrom
-// previously panicked on attacker-controlled input; now it returns an error
-// that's propagated up through NewDecodingContextFromBytes -> UnmarshalBinary.
+// NewSliceStringTableReaderFrom previously panicked on attacker-controlled
+// input; it now returns an error that propagates through
+// NewDecodingContextFromBytes -> UnmarshalBinary.
 func TestUnmarshalRejectsOversizedStringTable(t *testing.T) {
 	const tag = "BGST"
 	// 4-byte tag + 8-byte little-endian int64 length prefix exceeding the cap.

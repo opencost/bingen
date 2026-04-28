@@ -295,8 +295,13 @@ func NewSliceStringTableReaderFrom(buffer *util.Buffer) (StringTableReader, erro
 	if tl > MaxStringTableEntries {
 		return nil, fmt.Errorf("%s: string table length %d exceeds MaxStringTableEntries %d", GeneratorPackageName, tl, MaxStringTableEntries)
 	}
-	if rem := buffer.Remaining(); rem >= 0 && tl > rem {
-		return nil, fmt.Errorf("%s: string table length %d exceeds remaining bytes %d", GeneratorPackageName, tl, rem)
+	// Each entry has at least a 4-byte uint32 length prefix, so an honest
+	// table of tl entries needs at minimum tl*4 remaining bytes. Comparing
+	// against rem (bytes) rather than rem/4 (max-entries-from-bytes) would
+	// have left a tl*4 mismatch — a payload could legitimately advertise
+	// a 4x oversize table within the remaining-byte bound.
+	if rem := buffer.Remaining(); rem >= 0 && tl > rem/4 {
+		return nil, fmt.Errorf("%s: string table length %d exceeds capacity for %d remaining bytes", GeneratorPackageName, tl, rem)
 	}
 
 	var table []string
