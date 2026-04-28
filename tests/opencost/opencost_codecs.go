@@ -376,11 +376,19 @@ type SliceStringTableReader struct {
 
 // NewSliceStringTableReaderFrom creates a new SliceStringTableReader instance loading
 // data directly from the buffer. The buffer's position should start at the table length.
+//
+// In byte-buffer mode the table length is bounded by the buffer's remaining
+// bytes to reject DoS-shaped payloads; in reader-mode buffer.Remaining()
+// returns -1 ("unknown") and the underlying read will fail naturally if the
+// stream is short. The panic is recovered by Unmarshal*WithContext's deferred
+// recover and surfaced to the caller as a normal error.
 func NewSliceStringTableReaderFrom(buffer *util.Buffer) StringTableReader {
-	// table length
 	tl := buffer.ReadInt()
-	if tl < 0 || tl > buffer.Remaining() {
-		panic(fmt.Errorf("%s: invalid string table length: %d (remaining=%d)", GeneratorPackageName, tl, buffer.Remaining()))
+	if tl < 0 {
+		panic(fmt.Errorf("%s: invalid string table length: %d", GeneratorPackageName, tl))
+	}
+	if rem := buffer.Remaining(); rem >= 0 && tl > rem {
+		panic(fmt.Errorf("%s: string table length %d exceeds remaining bytes %d", GeneratorPackageName, tl, rem))
 	}
 
 	var table []string
@@ -1003,8 +1011,13 @@ func (target *Allocation) UnmarshalBinaryWithContext(ctx *DecodingContext) (err 
 	} else {
 		// --- [begin][read][map](map[PVKey]*PVAllocation) ---
 		gg := buff.ReadInt() // map len
-		if gg < 0 || gg > buff.Remaining() {
-			return fmt.Errorf("bingen: invalid map length %d (remaining=%d)", gg, buff.Remaining())
+		if gg < 0 {
+			return fmt.Errorf("bingen: invalid map length %d", gg)
+		}
+		// Remaining() returns -1 in reader-mode; only apply the upper bound when
+		// the buffer is byte-backed and the value is meaningful.
+		if rem := buff.Remaining(); rem >= 0 && gg > rem {
+			return fmt.Errorf("bingen: map length %d exceeds remaining bytes %d", gg, rem)
 		}
 		ff := make(map[PVKey]*PVAllocation, gg)
 		for range gg {
@@ -1417,8 +1430,14 @@ func (target *AllocationProperties) UnmarshalBinaryWithContext(ctx *DecodingCont
 	} else {
 		// --- [begin][read][slice]([]string) ---
 		bb := buff.ReadInt() // slice len
-		if bb < 0 || bb > buff.Remaining() {
-			return fmt.Errorf("bingen: invalid slice length %d (remaining=%d)", bb, buff.Remaining())
+		if bb < 0 {
+			return fmt.Errorf("bingen: invalid slice length %d", bb)
+		}
+		// In byte-buffer mode Remaining() upper-bounds the length to reject
+		// length-prefix DoS; in reader-mode Remaining() returns -1 ("unknown") and
+		// we trust the underlying read to fail if the stream is short.
+		if rem := buff.Remaining(); rem >= 0 && bb > rem {
+			return fmt.Errorf("bingen: slice length %d exceeds remaining bytes %d", bb, rem)
 		}
 		aa := make([]string, bb)
 		for i := range bb {
@@ -1457,8 +1476,13 @@ func (target *AllocationProperties) UnmarshalBinaryWithContext(ctx *DecodingCont
 	} else {
 		// --- [begin][read][map](map[string]string) ---
 		oo := buff.ReadInt() // map len
-		if oo < 0 || oo > buff.Remaining() {
-			return fmt.Errorf("bingen: invalid map length %d (remaining=%d)", oo, buff.Remaining())
+		if oo < 0 {
+			return fmt.Errorf("bingen: invalid map length %d", oo)
+		}
+		// Remaining() returns -1 in reader-mode; only apply the upper bound when
+		// the buffer is byte-backed and the value is meaningful.
+		if rem := buff.Remaining(); rem >= 0 && oo > rem {
+			return fmt.Errorf("bingen: map length %d exceeds remaining bytes %d", oo, rem)
 		}
 		nn := make(map[string]string, oo)
 		for range oo {
@@ -1501,8 +1525,13 @@ func (target *AllocationProperties) UnmarshalBinaryWithContext(ctx *DecodingCont
 	} else {
 		// --- [begin][read][map](map[string]string) ---
 		yy := buff.ReadInt() // map len
-		if yy < 0 || yy > buff.Remaining() {
-			return fmt.Errorf("bingen: invalid map length %d (remaining=%d)", yy, buff.Remaining())
+		if yy < 0 {
+			return fmt.Errorf("bingen: invalid map length %d", yy)
+		}
+		// Remaining() returns -1 in reader-mode; only apply the upper bound when
+		// the buffer is byte-backed and the value is meaningful.
+		if rem := buff.Remaining(); rem >= 0 && yy > rem {
+			return fmt.Errorf("bingen: map length %d exceeds remaining bytes %d", yy, rem)
 		}
 		xx := make(map[string]string, yy)
 		for range yy {
@@ -1771,8 +1800,13 @@ func (target *AllocationSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (e
 	} else {
 		// --- [begin][read][map](map[string]*Allocation) ---
 		b := buff.ReadInt() // map len
-		if b < 0 || b > buff.Remaining() {
-			return fmt.Errorf("bingen: invalid map length %d (remaining=%d)", b, buff.Remaining())
+		if b < 0 {
+			return fmt.Errorf("bingen: invalid map length %d", b)
+		}
+		// Remaining() returns -1 in reader-mode; only apply the upper bound when
+		// the buffer is byte-backed and the value is meaningful.
+		if rem := buff.Remaining(); rem >= 0 && b > rem {
+			return fmt.Errorf("bingen: map length %d exceeds remaining bytes %d", b, rem)
 		}
 		a := make(map[string]*Allocation, b)
 		for range b {
@@ -1814,8 +1848,13 @@ func (target *AllocationSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (e
 	} else {
 		// --- [begin][read][map](map[string]bool) ---
 		h := buff.ReadInt() // map len
-		if h < 0 || h > buff.Remaining() {
-			return fmt.Errorf("bingen: invalid map length %d (remaining=%d)", h, buff.Remaining())
+		if h < 0 {
+			return fmt.Errorf("bingen: invalid map length %d", h)
+		}
+		// Remaining() returns -1 in reader-mode; only apply the upper bound when
+		// the buffer is byte-backed and the value is meaningful.
+		if rem := buff.Remaining(); rem >= 0 && h > rem {
+			return fmt.Errorf("bingen: map length %d exceeds remaining bytes %d", h, rem)
 		}
 		g := make(map[string]bool, h)
 		for range h {
@@ -1846,8 +1885,13 @@ func (target *AllocationSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (e
 	} else {
 		// --- [begin][read][map](map[string]bool) ---
 		q := buff.ReadInt() // map len
-		if q < 0 || q > buff.Remaining() {
-			return fmt.Errorf("bingen: invalid map length %d (remaining=%d)", q, buff.Remaining())
+		if q < 0 {
+			return fmt.Errorf("bingen: invalid map length %d", q)
+		}
+		// Remaining() returns -1 in reader-mode; only apply the upper bound when
+		// the buffer is byte-backed and the value is meaningful.
+		if rem := buff.Remaining(); rem >= 0 && q > rem {
+			return fmt.Errorf("bingen: map length %d exceeds remaining bytes %d", q, rem)
 		}
 		p := make(map[string]bool, q)
 		for range q {
@@ -1898,8 +1942,14 @@ func (target *AllocationSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (e
 	} else {
 		// --- [begin][read][slice]([]string) ---
 		cc := buff.ReadInt() // slice len
-		if cc < 0 || cc > buff.Remaining() {
-			return fmt.Errorf("bingen: invalid slice length %d (remaining=%d)", cc, buff.Remaining())
+		if cc < 0 {
+			return fmt.Errorf("bingen: invalid slice length %d", cc)
+		}
+		// In byte-buffer mode Remaining() upper-bounds the length to reject
+		// length-prefix DoS; in reader-mode Remaining() returns -1 ("unknown") and
+		// we trust the underlying read to fail if the stream is short.
+		if rem := buff.Remaining(); rem >= 0 && cc > rem {
+			return fmt.Errorf("bingen: slice length %d exceeds remaining bytes %d", cc, rem)
 		}
 		bb := make([]string, cc)
 		for i := range cc {
@@ -1926,8 +1976,14 @@ func (target *AllocationSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (e
 	} else {
 		// --- [begin][read][slice]([]string) ---
 		ll := buff.ReadInt() // slice len
-		if ll < 0 || ll > buff.Remaining() {
-			return fmt.Errorf("bingen: invalid slice length %d (remaining=%d)", ll, buff.Remaining())
+		if ll < 0 {
+			return fmt.Errorf("bingen: invalid slice length %d", ll)
+		}
+		// In byte-buffer mode Remaining() upper-bounds the length to reject
+		// length-prefix DoS; in reader-mode Remaining() returns -1 ("unknown") and
+		// we trust the underlying read to fail if the stream is short.
+		if rem := buff.Remaining(); rem >= 0 && ll > rem {
+			return fmt.Errorf("bingen: slice length %d exceeds remaining bytes %d", ll, rem)
 		}
 		hh := make([]string, ll)
 		for j := range ll {
@@ -2015,8 +2071,13 @@ func (stream *AllocationSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVa
 		} else {
 			// --- [begin][read][streaming-map](map[string]*Allocation) ---
 			a := buff.ReadInt() // map len
-			if a < 0 || a > buff.Remaining() {
-				stream.err = fmt.Errorf("bingen: invalid map length %d (remaining=%d)", a, buff.Remaining())
+			if a < 0 {
+				stream.err = fmt.Errorf("bingen: invalid map length %d", a)
+				return
+
+			}
+			if rem := buff.Remaining(); rem >= 0 && a > rem {
+				stream.err = fmt.Errorf("bingen: map length %d exceeds remaining bytes %d", a, rem)
 				return
 
 			}
@@ -2069,8 +2130,13 @@ func (stream *AllocationSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVa
 		} else {
 			// --- [begin][read][streaming-map](map[string]bool) ---
 			f := buff.ReadInt() // map len
-			if f < 0 || f > buff.Remaining() {
-				stream.err = fmt.Errorf("bingen: invalid map length %d (remaining=%d)", f, buff.Remaining())
+			if f < 0 {
+				stream.err = fmt.Errorf("bingen: invalid map length %d", f)
+				return
+
+			}
+			if rem := buff.Remaining(); rem >= 0 && f > rem {
+				stream.err = fmt.Errorf("bingen: map length %d exceeds remaining bytes %d", f, rem)
 				return
 
 			}
@@ -2109,8 +2175,13 @@ func (stream *AllocationSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVa
 		} else {
 			// --- [begin][read][streaming-map](map[string]bool) ---
 			n := buff.ReadInt() // map len
-			if n < 0 || n > buff.Remaining() {
-				stream.err = fmt.Errorf("bingen: invalid map length %d (remaining=%d)", n, buff.Remaining())
+			if n < 0 {
+				stream.err = fmt.Errorf("bingen: invalid map length %d", n)
+				return
+
+			}
+			if rem := buff.Remaining(); rem >= 0 && n > rem {
+				stream.err = fmt.Errorf("bingen: map length %d exceeds remaining bytes %d", n, rem)
 				return
 
 			}
@@ -2188,8 +2259,15 @@ func (stream *AllocationSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVa
 		} else {
 			// --- [begin][read][streaming-slice]([]string) ---
 			aa := buff.ReadInt() // slice len
-			if aa < 0 || aa > buff.Remaining() {
-				stream.err = fmt.Errorf("bingen: invalid slice length %d (remaining=%d)", aa, buff.Remaining())
+			if aa < 0 {
+				stream.err = fmt.Errorf("bingen: invalid slice length %d", aa)
+				return
+
+			}
+			// Streaming reads almost always come from an io.Reader, where Remaining()
+			// returns -1; the upper-bound check only fires for the byte-buffer case.
+			if rem := buff.Remaining(); rem >= 0 && aa > rem {
+				stream.err = fmt.Errorf("bingen: slice length %d exceeds remaining bytes %d", aa, rem)
 				return
 
 			}
@@ -2225,8 +2303,15 @@ func (stream *AllocationSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVa
 		} else {
 			// --- [begin][read][streaming-slice]([]string) ---
 			ff := buff.ReadInt() // slice len
-			if ff < 0 || ff > buff.Remaining() {
-				stream.err = fmt.Errorf("bingen: invalid slice length %d (remaining=%d)", ff, buff.Remaining())
+			if ff < 0 {
+				stream.err = fmt.Errorf("bingen: invalid slice length %d", ff)
+				return
+
+			}
+			// Streaming reads almost always come from an io.Reader, where Remaining()
+			// returns -1; the upper-bound check only fires for the byte-buffer case.
+			if rem := buff.Remaining(); rem >= 0 && ff > rem {
+				stream.err = fmt.Errorf("bingen: slice length %d exceeds remaining bytes %d", ff, rem)
 				return
 
 			}
@@ -2387,8 +2472,14 @@ func (target *AllocationSetRange) UnmarshalBinaryWithContext(ctx *DecodingContex
 	} else {
 		// --- [begin][read][slice]([]*AllocationSet) ---
 		b := buff.ReadInt() // slice len
-		if b < 0 || b > buff.Remaining() {
-			return fmt.Errorf("bingen: invalid slice length %d (remaining=%d)", b, buff.Remaining())
+		if b < 0 {
+			return fmt.Errorf("bingen: invalid slice length %d", b)
+		}
+		// In byte-buffer mode Remaining() upper-bounds the length to reject
+		// length-prefix DoS; in reader-mode Remaining() returns -1 ("unknown") and
+		// we trust the underlying read to fail if the stream is short.
+		if rem := buff.Remaining(); rem >= 0 && b > rem {
+			return fmt.Errorf("bingen: slice length %d exceeds remaining bytes %d", b, rem)
 		}
 		a := make([]*AllocationSet, b)
 		for i := range b {
@@ -2602,8 +2693,13 @@ func (target *Any) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) 
 	} else {
 		// --- [begin][read][map](map[string]string) ---
 		c := buff.ReadInt() // map len
-		if c < 0 || c > buff.Remaining() {
-			return fmt.Errorf("bingen: invalid map length %d (remaining=%d)", c, buff.Remaining())
+		if c < 0 {
+			return fmt.Errorf("bingen: invalid map length %d", c)
+		}
+		// Remaining() returns -1 in reader-mode; only apply the upper bound when
+		// the buffer is byte-backed and the value is meaningful.
+		if rem := buff.Remaining(); rem >= 0 && c > rem {
+			return fmt.Errorf("bingen: map length %d exceeds remaining bytes %d", c, rem)
 		}
 		b := make(map[string]string, c)
 		for range c {
@@ -3145,8 +3241,14 @@ func (target *AssetSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (err er
 	} else {
 		// --- [begin][read][slice]([]string) ---
 		b := buff.ReadInt() // slice len
-		if b < 0 || b > buff.Remaining() {
-			return fmt.Errorf("bingen: invalid slice length %d (remaining=%d)", b, buff.Remaining())
+		if b < 0 {
+			return fmt.Errorf("bingen: invalid slice length %d", b)
+		}
+		// In byte-buffer mode Remaining() upper-bounds the length to reject
+		// length-prefix DoS; in reader-mode Remaining() returns -1 ("unknown") and
+		// we trust the underlying read to fail if the stream is short.
+		if rem := buff.Remaining(); rem >= 0 && b > rem {
+			return fmt.Errorf("bingen: slice length %d exceeds remaining bytes %d", b, rem)
 		}
 		a := make([]string, b)
 		for i := range b {
@@ -3173,8 +3275,13 @@ func (target *AssetSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (err er
 	} else {
 		// --- [begin][read][map](map[string]Asset) ---
 		h := buff.ReadInt() // map len
-		if h < 0 || h > buff.Remaining() {
-			return fmt.Errorf("bingen: invalid map length %d (remaining=%d)", h, buff.Remaining())
+		if h < 0 {
+			return fmt.Errorf("bingen: invalid map length %d", h)
+		}
+		// Remaining() returns -1 in reader-mode; only apply the upper bound when
+		// the buffer is byte-backed and the value is meaningful.
+		if rem := buff.Remaining(); rem >= 0 && h > rem {
+			return fmt.Errorf("bingen: map length %d exceeds remaining bytes %d", h, rem)
 		}
 		g := make(map[string]Asset, h)
 		for range h {
@@ -3246,8 +3353,14 @@ func (target *AssetSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (err er
 	} else {
 		// --- [begin][read][slice]([]string) ---
 		x := buff.ReadInt() // slice len
-		if x < 0 || x > buff.Remaining() {
-			return fmt.Errorf("bingen: invalid slice length %d (remaining=%d)", x, buff.Remaining())
+		if x < 0 {
+			return fmt.Errorf("bingen: invalid slice length %d", x)
+		}
+		// In byte-buffer mode Remaining() upper-bounds the length to reject
+		// length-prefix DoS; in reader-mode Remaining() returns -1 ("unknown") and
+		// we trust the underlying read to fail if the stream is short.
+		if rem := buff.Remaining(); rem >= 0 && x > rem {
+			return fmt.Errorf("bingen: slice length %d exceeds remaining bytes %d", x, rem)
 		}
 		w := make([]string, x)
 		for j := range x {
@@ -3274,8 +3387,14 @@ func (target *AssetSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (err er
 	} else {
 		// --- [begin][read][slice]([]string) ---
 		ee := buff.ReadInt() // slice len
-		if ee < 0 || ee > buff.Remaining() {
-			return fmt.Errorf("bingen: invalid slice length %d (remaining=%d)", ee, buff.Remaining())
+		if ee < 0 {
+			return fmt.Errorf("bingen: invalid slice length %d", ee)
+		}
+		// In byte-buffer mode Remaining() upper-bounds the length to reject
+		// length-prefix DoS; in reader-mode Remaining() returns -1 ("unknown") and
+		// we trust the underlying read to fail if the stream is short.
+		if rem := buff.Remaining(); rem >= 0 && ee > rem {
+			return fmt.Errorf("bingen: slice length %d exceeds remaining bytes %d", ee, rem)
 		}
 		dd := make([]string, ee)
 		for ii := range ee {
@@ -3366,8 +3485,15 @@ func (stream *AssetSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] 
 		} else {
 			// --- [begin][read][streaming-slice]([]string) ---
 			a := buff.ReadInt() // slice len
-			if a < 0 || a > buff.Remaining() {
-				stream.err = fmt.Errorf("bingen: invalid slice length %d (remaining=%d)", a, buff.Remaining())
+			if a < 0 {
+				stream.err = fmt.Errorf("bingen: invalid slice length %d", a)
+				return
+
+			}
+			// Streaming reads almost always come from an io.Reader, where Remaining()
+			// returns -1; the upper-bound check only fires for the byte-buffer case.
+			if rem := buff.Remaining(); rem >= 0 && a > rem {
+				stream.err = fmt.Errorf("bingen: slice length %d exceeds remaining bytes %d", a, rem)
 				return
 
 			}
@@ -3403,8 +3529,13 @@ func (stream *AssetSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] 
 		} else {
 			// --- [begin][read][streaming-map](map[string]Asset) ---
 			f := buff.ReadInt() // map len
-			if f < 0 || f > buff.Remaining() {
-				stream.err = fmt.Errorf("bingen: invalid map length %d (remaining=%d)", f, buff.Remaining())
+			if f < 0 {
+				stream.err = fmt.Errorf("bingen: invalid map length %d", f)
+				return
+
+			}
+			if rem := buff.Remaining(); rem >= 0 && f > rem {
+				stream.err = fmt.Errorf("bingen: map length %d exceeds remaining bytes %d", f, rem)
 				return
 
 			}
@@ -3510,8 +3641,15 @@ func (stream *AssetSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] 
 		} else {
 			// --- [begin][read][streaming-slice]([]string) ---
 			w := buff.ReadInt() // slice len
-			if w < 0 || w > buff.Remaining() {
-				stream.err = fmt.Errorf("bingen: invalid slice length %d (remaining=%d)", w, buff.Remaining())
+			if w < 0 {
+				stream.err = fmt.Errorf("bingen: invalid slice length %d", w)
+				return
+
+			}
+			// Streaming reads almost always come from an io.Reader, where Remaining()
+			// returns -1; the upper-bound check only fires for the byte-buffer case.
+			if rem := buff.Remaining(); rem >= 0 && w > rem {
+				stream.err = fmt.Errorf("bingen: slice length %d exceeds remaining bytes %d", w, rem)
 				return
 
 			}
@@ -3547,8 +3685,15 @@ func (stream *AssetSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] 
 		} else {
 			// --- [begin][read][streaming-slice]([]string) ---
 			cc := buff.ReadInt() // slice len
-			if cc < 0 || cc > buff.Remaining() {
-				stream.err = fmt.Errorf("bingen: invalid slice length %d (remaining=%d)", cc, buff.Remaining())
+			if cc < 0 {
+				stream.err = fmt.Errorf("bingen: invalid slice length %d", cc)
+				return
+
+			}
+			// Streaming reads almost always come from an io.Reader, where Remaining()
+			// returns -1; the upper-bound check only fires for the byte-buffer case.
+			if rem := buff.Remaining(); rem >= 0 && cc > rem {
+				stream.err = fmt.Errorf("bingen: slice length %d exceeds remaining bytes %d", cc, rem)
 				return
 
 			}
@@ -3709,8 +3854,14 @@ func (target *AssetSetRange) UnmarshalBinaryWithContext(ctx *DecodingContext) (e
 	} else {
 		// --- [begin][read][slice]([]*AssetSet) ---
 		b := buff.ReadInt() // slice len
-		if b < 0 || b > buff.Remaining() {
-			return fmt.Errorf("bingen: invalid slice length %d (remaining=%d)", b, buff.Remaining())
+		if b < 0 {
+			return fmt.Errorf("bingen: invalid slice length %d", b)
+		}
+		// In byte-buffer mode Remaining() upper-bounds the length to reject
+		// length-prefix DoS; in reader-mode Remaining() returns -1 ("unknown") and
+		// we trust the underlying read to fail if the stream is short.
+		if rem := buff.Remaining(); rem >= 0 && b > rem {
+			return fmt.Errorf("bingen: slice length %d exceeds remaining bytes %d", b, rem)
 		}
 		a := make([]*AssetSet, b)
 		for i := range b {
@@ -4043,8 +4194,13 @@ func (target *Cloud) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error
 	} else {
 		// --- [begin][read][map](map[string]string) ---
 		c := buff.ReadInt() // map len
-		if c < 0 || c > buff.Remaining() {
-			return fmt.Errorf("bingen: invalid map length %d (remaining=%d)", c, buff.Remaining())
+		if c < 0 {
+			return fmt.Errorf("bingen: invalid map length %d", c)
+		}
+		// Remaining() returns -1 in reader-mode; only apply the upper bound when
+		// the buffer is byte-backed and the value is meaningful.
+		if rem := buff.Remaining(); rem >= 0 && c > rem {
+			return fmt.Errorf("bingen: map length %d exceeds remaining bytes %d", c, rem)
 		}
 		b := make(map[string]string, c)
 		for range c {
@@ -4294,8 +4450,13 @@ func (target *ClusterManagement) UnmarshalBinaryWithContext(ctx *DecodingContext
 	} else {
 		// --- [begin][read][map](map[string]string) ---
 		c := buff.ReadInt() // map len
-		if c < 0 || c > buff.Remaining() {
-			return fmt.Errorf("bingen: invalid map length %d (remaining=%d)", c, buff.Remaining())
+		if c < 0 {
+			return fmt.Errorf("bingen: invalid map length %d", c)
+		}
+		// Remaining() returns -1 in reader-mode; only apply the upper bound when
+		// the buffer is byte-backed and the value is meaningful.
+		if rem := buff.Remaining(); rem >= 0 && c > rem {
+			return fmt.Errorf("bingen: map length %d exceeds remaining bytes %d", c, rem)
 		}
 		b := make(map[string]string, c)
 		for range c {
@@ -4556,8 +4717,13 @@ func (target *Disk) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error)
 	} else {
 		// --- [begin][read][map](map[string]string) ---
 		c := buff.ReadInt() // map len
-		if c < 0 || c > buff.Remaining() {
-			return fmt.Errorf("bingen: invalid map length %d (remaining=%d)", c, buff.Remaining())
+		if c < 0 {
+			return fmt.Errorf("bingen: invalid map length %d", c)
+		}
+		// Remaining() returns -1 in reader-mode; only apply the upper bound when
+		// the buffer is byte-backed and the value is meaningful.
+		if rem := buff.Remaining(); rem >= 0 && c > rem {
+			return fmt.Errorf("bingen: map length %d exceeds remaining bytes %d", c, rem)
 		}
 		b := make(map[string]string, c)
 		for range c {
@@ -4863,8 +5029,13 @@ func (target *LoadBalancer) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 	} else {
 		// --- [begin][read][map](map[string]string) ---
 		d := buff.ReadInt() // map len
-		if d < 0 || d > buff.Remaining() {
-			return fmt.Errorf("bingen: invalid map length %d (remaining=%d)", d, buff.Remaining())
+		if d < 0 {
+			return fmt.Errorf("bingen: invalid map length %d", d)
+		}
+		// Remaining() returns -1 in reader-mode; only apply the upper bound when
+		// the buffer is byte-backed and the value is meaningful.
+		if rem := buff.Remaining(); rem >= 0 && d > rem {
+			return fmt.Errorf("bingen: map length %d exceeds remaining bytes %d", d, rem)
 		}
 		c := make(map[string]string, d)
 		for range d {
@@ -5132,8 +5303,13 @@ func (target *Network) UnmarshalBinaryWithContext(ctx *DecodingContext) (err err
 	} else {
 		// --- [begin][read][map](map[string]string) ---
 		d := buff.ReadInt() // map len
-		if d < 0 || d > buff.Remaining() {
-			return fmt.Errorf("bingen: invalid map length %d (remaining=%d)", d, buff.Remaining())
+		if d < 0 {
+			return fmt.Errorf("bingen: invalid map length %d", d)
+		}
+		// Remaining() returns -1 in reader-mode; only apply the upper bound when
+		// the buffer is byte-backed and the value is meaningful.
+		if rem := buff.Remaining(); rem >= 0 && d > rem {
+			return fmt.Errorf("bingen: map length %d exceeds remaining bytes %d", d, rem)
 		}
 		c := make(map[string]string, d)
 		for range d {
@@ -5453,8 +5629,13 @@ func (target *Node) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error)
 	} else {
 		// --- [begin][read][map](map[string]string) ---
 		d := buff.ReadInt() // map len
-		if d < 0 || d > buff.Remaining() {
-			return fmt.Errorf("bingen: invalid map length %d (remaining=%d)", d, buff.Remaining())
+		if d < 0 {
+			return fmt.Errorf("bingen: invalid map length %d", d)
+		}
+		// Remaining() returns -1 in reader-mode; only apply the upper bound when
+		// the buffer is byte-backed and the value is meaningful.
+		if rem := buff.Remaining(); rem >= 0 && d > rem {
+			return fmt.Errorf("bingen: map length %d exceeds remaining bytes %d", d, rem)
 		}
 		c := make(map[string]string, d)
 		for range d {
@@ -6111,8 +6292,13 @@ func (target *SharedAsset) UnmarshalBinaryWithContext(ctx *DecodingContext) (err
 	} else {
 		// --- [begin][read][map](map[string]string) ---
 		d := buff.ReadInt() // map len
-		if d < 0 || d > buff.Remaining() {
-			return fmt.Errorf("bingen: invalid map length %d (remaining=%d)", d, buff.Remaining())
+		if d < 0 {
+			return fmt.Errorf("bingen: invalid map length %d", d)
+		}
+		// Remaining() returns -1 in reader-mode; only apply the upper bound when
+		// the buffer is byte-backed and the value is meaningful.
+		if rem := buff.Remaining(); rem >= 0 && d > rem {
+			return fmt.Errorf("bingen: map length %d exceeds remaining bytes %d", d, rem)
 		}
 		c := make(map[string]string, d)
 		for range d {

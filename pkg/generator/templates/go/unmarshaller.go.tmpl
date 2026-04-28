@@ -89,8 +89,14 @@
     {{- $innerVar := .Context.NextVar -}}
 
     {{ $lenVar }} := buff.ReadInt() // slice len
-    if {{ $lenVar }} < 0 || {{ $lenVar }} > buff.Remaining() {
-        {{ .Context.HandleError (printf "fmt.Errorf(\"bingen: invalid slice length %%d (remaining=%%d)\", %s, buff.Remaining())" $lenVar) }}
+    if {{ $lenVar }} < 0 {
+        {{ .Context.HandleError (printf "fmt.Errorf(\"bingen: invalid slice length %%d\", %s)" $lenVar) }}
+    }
+    // In byte-buffer mode Remaining() upper-bounds the length to reject
+    // length-prefix DoS; in reader-mode Remaining() returns -1 ("unknown") and
+    // we trust the underlying read to fail if the stream is short.
+    if rem := buff.Remaining(); rem >= 0 && {{ $lenVar }} > rem {
+        {{ .Context.HandleError (printf "fmt.Errorf(\"bingen: slice length %%d exceeds remaining bytes %%d\", %s, rem)" $lenVar) }}
     }
     {{ $sliceVar }} := make({{ .Type.Name }}, {{ $lenVar }})
     for {{ $loopVar }} := range {{ $lenVar }} {
@@ -114,8 +120,13 @@
     {{- $valVar := .Context.NextMapVar -}}
 
     {{ $lenVar }} := buff.ReadInt() // map len
-    if {{ $lenVar }} < 0 || {{ $lenVar }} > buff.Remaining() {
-        {{ .Context.HandleError (printf "fmt.Errorf(\"bingen: invalid map length %%d (remaining=%%d)\", %s, buff.Remaining())" $lenVar) }}
+    if {{ $lenVar }} < 0 {
+        {{ .Context.HandleError (printf "fmt.Errorf(\"bingen: invalid map length %%d\", %s)" $lenVar) }}
+    }
+    // Remaining() returns -1 in reader-mode; only apply the upper bound when
+    // the buffer is byte-backed and the value is meaningful.
+    if rem := buff.Remaining(); rem >= 0 && {{ $lenVar }} > rem {
+        {{ .Context.HandleError (printf "fmt.Errorf(\"bingen: map length %%d exceeds remaining bytes %%d\", %s, rem)" $lenVar) }}
     }
     {{ $mapVar }} := make(map[{{ .Type.KeyType.TypeName }}]{{ .Type.ValueType.TypeName }}, {{ $lenVar }})
     for range {{ $lenVar }} {

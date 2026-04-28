@@ -353,12 +353,16 @@ func (b *Buffer) ReadFloat64() float64 {
 
 // ReadString reads a uint32 value from the buffer representing the string's length,
 // then uses the length to extract the exact length []byte representing the string.
+//
+// In byte-buffer mode the requested length is bounded by the unread byte count
+// to prevent a crafted payload from triggering a huge allocation. In
+// reader-mode the underlying read will fail naturally if the stream doesn't
+// contain enough bytes; the bufio.Reader's incidental buffer size is not a
+// reliable bound and would falsely reject valid large strings.
 func (b *Buffer) ReadString() string {
 	var l uint32
 	if b.bw != nil {
 		readUint32(b.bw, &l)
-		// Bound the requested length against unread bytes to prevent a crafted
-		// payload from triggering a huge allocation.
 		if uint64(l) > uint64(b.bw.Len()) {
 			return ""
 		}
@@ -401,16 +405,19 @@ func (b *Buffer) ReadBytes(length int) []byte {
 	return bytes
 }
 
-// Remaining returns the number of unread bytes available in the buffer. For
-// reader-mode buffers this returns the bufio.Reader's currently-buffered byte
-// count, which is a lower bound on what's available without performing more
-// I/O. Callers should treat the result as a sanity bound for length-prefix
-// validation, not an exact remaining size.
+// Remaining returns the number of unread bytes available to a byte-buffer
+// (read/write) Buffer. For reader-mode buffers, where the true remaining
+// payload is unknown without performing more I/O, Remaining returns -1.
+//
+// Callers using Remaining as a sanity bound for a length prefix should treat
+// a negative return value as "unknown" and skip the upper-bound check —
+// otherwise legitimate large payloads streamed through an io.Reader would be
+// rejected based on the bufio.Reader's incidental buffering size.
 func (b *Buffer) Remaining() int {
 	if b.bw != nil {
 		return b.bw.Len()
 	}
-	return b.b.Buffered()
+	return -1
 }
 
 // bytesAsString converts a []byte into a string in place. Note that you should use this helper

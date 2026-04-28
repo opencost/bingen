@@ -40,8 +40,13 @@
     {{- $innerVar := .Context.NextVar -}}
 
     {{ $lenVar }} := buff.ReadInt() // slice len
-    if {{ $lenVar }} < 0 || {{ $lenVar }} > buff.Remaining() {
-        {{ .Context.HandleError (printf "fmt.Errorf(\"bingen: invalid slice length %%d (remaining=%%d)\", %s, buff.Remaining())" $lenVar) }}
+    if {{ $lenVar }} < 0 {
+        {{ .Context.HandleError (printf "fmt.Errorf(\"bingen: invalid slice length %%d\", %s)" $lenVar) }}
+    }
+    // Streaming reads almost always come from an io.Reader, where Remaining()
+    // returns -1; the upper-bound check only fires for the byte-buffer case.
+    if rem := buff.Remaining(); rem >= 0 && {{ $lenVar }} > rem {
+        {{ .Context.HandleError (printf "fmt.Errorf(\"bingen: slice length %%d exceeds remaining bytes %%d\", %s, rem)" $lenVar) }}
     }
     for {{ $loopVar }} := range {{ $lenVar }} {
         {{- $target := (AsTarget $innerVar) }}
@@ -63,8 +68,11 @@
     {{- $valVar := .Context.NextMapVar -}}
 
     {{ $lenVar }} := buff.ReadInt() // map len
-    if {{ $lenVar }} < 0 || {{ $lenVar }} > buff.Remaining() {
-        {{ .Context.HandleError (printf "fmt.Errorf(\"bingen: invalid map length %%d (remaining=%%d)\", %s, buff.Remaining())" $lenVar) }}
+    if {{ $lenVar }} < 0 {
+        {{ .Context.HandleError (printf "fmt.Errorf(\"bingen: invalid map length %%d\", %s)" $lenVar) }}
+    }
+    if rem := buff.Remaining(); rem >= 0 && {{ $lenVar }} > rem {
+        {{ .Context.HandleError (printf "fmt.Errorf(\"bingen: map length %%d exceeds remaining bytes %%d\", %s, rem)" $lenVar) }}
     }
     for range {{ $lenVar }} {
         {{- $keyTarget := (AsTarget $keyVar) }}

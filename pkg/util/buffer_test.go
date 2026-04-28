@@ -2,10 +2,36 @@ package util
 
 import (
 	"bytes"
+	"io"
 	"math"
 	"strings"
 	"testing"
 )
+
+// TestRemainingReaderModeIsUnknown documents the contract that Remaining() in
+// reader-mode returns -1 ("unknown"). Generated codecs use this sentinel so
+// that length-prefix sanity checks don't false-reject legitimate large
+// payloads on an io.Reader where the bufio.Reader's incidental buffer size
+// would otherwise look like the entire payload.
+func TestRemainingReaderModeIsUnknown(t *testing.T) {
+	r := NewBufferFromReader(io.NopCloser(bytes.NewReader([]byte{1, 2, 3})))
+	if got := r.Remaining(); got != -1 {
+		t.Errorf("reader-mode Remaining() = %d, want -1", got)
+	}
+}
+
+// TestRemainingByteBufferModeIsExact verifies that byte-buffer mode keeps the
+// existing semantics: Remaining returns the unread byte count.
+func TestRemainingByteBufferModeIsExact(t *testing.T) {
+	b := NewBufferFromBytes([]byte{1, 2, 3, 4, 5})
+	if got := b.Remaining(); got != 5 {
+		t.Errorf("byte-buffer Remaining() = %d, want 5", got)
+	}
+	b.ReadUInt8()
+	if got := b.Remaining(); got != 4 {
+		t.Errorf("byte-buffer Remaining() after 1 read = %d, want 4", got)
+	}
+}
 
 // TestRoundTripIntFullRange verifies that int values across the full int64 range
 // survive a write/read pair. The previous implementation truncated to int32 and

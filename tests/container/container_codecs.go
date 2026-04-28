@@ -276,11 +276,19 @@ type SliceStringTableReader struct {
 
 // NewSliceStringTableReaderFrom creates a new SliceStringTableReader instance loading
 // data directly from the buffer. The buffer's position should start at the table length.
+//
+// In byte-buffer mode the table length is bounded by the buffer's remaining
+// bytes to reject DoS-shaped payloads; in reader-mode buffer.Remaining()
+// returns -1 ("unknown") and the underlying read will fail naturally if the
+// stream is short. The panic is recovered by Unmarshal*WithContext's deferred
+// recover and surfaced to the caller as a normal error.
 func NewSliceStringTableReaderFrom(buffer *util.Buffer) StringTableReader {
-	// table length
 	tl := buffer.ReadInt()
-	if tl < 0 || tl > buffer.Remaining() {
-		panic(fmt.Errorf("%s: invalid string table length: %d (remaining=%d)", GeneratorPackageName, tl, buffer.Remaining()))
+	if tl < 0 {
+		panic(fmt.Errorf("%s: invalid string table length: %d", GeneratorPackageName, tl))
+	}
+	if rem := buffer.Remaining(); rem >= 0 && tl > rem {
+		panic(fmt.Errorf("%s: string table length %d exceeds remaining bytes %d", GeneratorPackageName, tl, rem))
 	}
 
 	var table []string
@@ -686,8 +694,14 @@ func (target *Container) UnmarshalBinaryWithContext(ctx *DecodingContext) (err e
 	} else {
 		// --- [begin][read][slice]([]string) ---
 		e := buff.ReadInt() // slice len
-		if e < 0 || e > buff.Remaining() {
-			return fmt.Errorf("bingen: invalid slice length %d (remaining=%d)", e, buff.Remaining())
+		if e < 0 {
+			return fmt.Errorf("bingen: invalid slice length %d", e)
+		}
+		// In byte-buffer mode Remaining() upper-bounds the length to reject
+		// length-prefix DoS; in reader-mode Remaining() returns -1 ("unknown") and
+		// we trust the underlying read to fail if the stream is short.
+		if rem := buff.Remaining(); rem >= 0 && e > rem {
+			return fmt.Errorf("bingen: slice length %d exceeds remaining bytes %d", e, rem)
 		}
 		d := make([]string, e)
 		for i := range e {
