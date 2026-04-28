@@ -33,6 +33,12 @@ const (
 	// table (where each index is encoded as a string entry in the resource
 	BinaryTagStringTable string = "BGST"
 
+	// MaxStringTableEntries is the hard upper bound on the number of entries
+	// in a decoded string table, applied unconditionally to bound the
+	// attacker-controlled allocation in NewSliceStringTableReaderFrom and
+	// NewFileStringTableReaderFrom.
+	MaxStringTableEntries = 1 << 20
+
 	// AllocationCodecVersion is used for any resources listed in the Allocation version set
 	AllocationCodecVersion uint8 = 16
 
@@ -209,7 +215,10 @@ func resolveType(t string) (pkg string, name string, isPtr bool) {
 //--------------------------------------------------------------------------
 
 // StreamFactoryFunc is an alias for a func that creates a BingenStream implementation.
-type StreamFactoryFunc func(io.Reader) BingenStream
+// It returns an error to allow the constructor to surface decoding-context
+// failures (e.g. an oversized or malformed string table) up to the caller
+// rather than panicking.
+type StreamFactoryFunc func(io.Reader) (BingenStream, error)
 
 // Generated streamable factory map for finding the specific new stream methods
 // by T type
@@ -229,7 +238,7 @@ func NewStreamFor[T any](reader io.Reader) (BingenStream, error) {
 		return nil, fmt.Errorf("the type: %s is not a registered bingen streamable type", typeKey.Name())
 	}
 
-	return factory(reader), nil
+	return factory(reader)
 }
 
 // BingenStream is the stream interface for all streamable types
@@ -377,18 +386,20 @@ type SliceStringTableReader struct {
 // NewSliceStringTableReaderFrom creates a new SliceStringTableReader instance loading
 // data directly from the buffer. The buffer's position should start at the table length.
 //
-// In byte-buffer mode the table length is bounded by the buffer's remaining
-// bytes to reject DoS-shaped payloads; in reader-mode buffer.Remaining()
-// returns -1 ("unknown") and the underlying read will fail naturally if the
-// stream is short. The panic is recovered by Unmarshal*WithContext's deferred
-// recover and surfaced to the caller as a normal error.
-func NewSliceStringTableReaderFrom(buffer *util.Buffer) StringTableReader {
+// The table length is unconditionally capped at MaxStringTableEntries to bound
+// the attacker-controlled allocation. In byte-buffer mode it is also bounded
+// by the buffer's remaining bytes; in reader-mode buffer.Remaining() returns
+// -1 and the underlying read fails naturally if the stream is short.
+func NewSliceStringTableReaderFrom(buffer *util.Buffer) (StringTableReader, error) {
 	tl := buffer.ReadInt()
 	if tl < 0 {
-		panic(fmt.Errorf("%s: invalid string table length: %d", GeneratorPackageName, tl))
+		return nil, fmt.Errorf("%s: invalid string table length: %d", GeneratorPackageName, tl)
+	}
+	if tl > MaxStringTableEntries {
+		return nil, fmt.Errorf("%s: string table length %d exceeds MaxStringTableEntries %d", GeneratorPackageName, tl, MaxStringTableEntries)
 	}
 	if rem := buffer.Remaining(); rem >= 0 && tl > rem {
-		panic(fmt.Errorf("%s: string table length %d exceeds remaining bytes %d", GeneratorPackageName, tl, rem))
+		return nil, fmt.Errorf("%s: string table length %d exceeds remaining bytes %d", GeneratorPackageName, tl, rem)
 	}
 
 	var table []string
@@ -401,7 +412,7 @@ func NewSliceStringTableReaderFrom(buffer *util.Buffer) StringTableReader {
 
 	return &SliceStringTableReader{
 		table: table,
-	}
+	}, nil
 }
 
 // At returns the string entry at a specific index, or panics on out of bounds.
@@ -443,36 +454,46 @@ type FileStringTableReader struct {
 	refs []fileStringRef
 }
 
-// NewFileStringTableFromBuffer reads exactly tl length-prefixed (uint16) string payloads from buffer
-// and appends each payload to a new temp file. It does not retain full strings in memory.
-func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string) StringTableReader {
+// NewFileStringTableReaderFrom reads exactly tl length-prefixed string payloads
+// from buffer and appends each payload to a new temp file. It does not retain
+// full strings in memory.
+//
+// The table length is unconditionally capped at MaxStringTableEntries to bound
+// the attacker-controlled allocation of refs. The temp file is closed and
+// removed on any failure path.
+func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string) (StringTableReader, error) {
 	// helper func to cast a string in-place to a byte slice.
 	// NOTE: Return value is READ-ONLY. DO NOT MODIFY!
 	byteSliceFor := func(s string) []byte {
 		return unsafe.Slice(unsafe.StringData(s), len(s))
 	}
 
-	err := os.MkdirAll(dir, 0755)
-	if err != nil {
-		panic(fmt.Errorf("%s: failed to create string table directory: %w", GeneratorPackageName, err))
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return nil, fmt.Errorf("%s: failed to create string table directory: %w", GeneratorPackageName, err)
 	}
 
 	f, err := os.CreateTemp(dir, fmt.Sprintf("%s-bgst-*", GeneratorPackageName))
 	if err != nil {
-		panic(fmt.Errorf("%s: failed to create string table file: %w", GeneratorPackageName, err))
+		return nil, fmt.Errorf("%s: failed to create string table file: %w", GeneratorPackageName, err)
 	}
 
-	var writeErr error
-	defer func() {
-		if writeErr != nil {
-			_ = f.Close()
+	cleanup := func() {
+		path := f.Name()
+		_ = f.Close()
+		if path != "" {
+			_ = os.Remove(path)
 		}
-	}()
+	}
 
 	// table length
 	tl := buffer.ReadInt()
 	if tl < 0 {
-		panic(fmt.Errorf("%s: invalid string table length: %d", GeneratorPackageName, tl))
+		cleanup()
+		return nil, fmt.Errorf("%s: invalid string table length: %d", GeneratorPackageName, tl)
+	}
+	if tl > MaxStringTableEntries {
+		cleanup()
+		return nil, fmt.Errorf("%s: string table length %d exceeds MaxStringTableEntries %d", GeneratorPackageName, tl, MaxStringTableEntries)
 	}
 
 	var refs []fileStringRef
@@ -486,12 +507,12 @@ func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string) StringTableRe
 			if len(payload) > 0 {
 				off, err = f.Seek(0, io.SeekEnd)
 				if err != nil {
-					writeErr = fmt.Errorf("%s: failed to seek string table file: %w", GeneratorPackageName, err)
-					panic(writeErr)
+					cleanup()
+					return nil, fmt.Errorf("%s: failed to seek string table file: %w", GeneratorPackageName, err)
 				}
-				if _, err := f.Write(payload); err != nil {
-					writeErr = fmt.Errorf("%s: failed to write string table entry %d: %w", GeneratorPackageName, i, err)
-					panic(writeErr)
+				if _, werr := f.Write(payload); werr != nil {
+					cleanup()
+					return nil, fmt.Errorf("%s: failed to write string table entry %d: %w", GeneratorPackageName, i, werr)
 				}
 			}
 
@@ -505,7 +526,7 @@ func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string) StringTableRe
 	return &FileStringTableReader{
 		f:    f,
 		refs: refs,
-	}
+	}, nil
 }
 
 // At returns the string from the internal file using the reference's offset and length.
@@ -584,7 +605,7 @@ type DecodingContext struct {
 }
 
 // NewDecodingContextFromBytes creates a new DecodingContext instance using an byte slice
-func NewDecodingContextFromBytes(data []byte) *DecodingContext {
+func NewDecodingContextFromBytes(data []byte) (*DecodingContext, error) {
 	var table StringTableReader
 
 	buff := util.NewBufferFromBytes(data)
@@ -595,18 +616,22 @@ func NewDecodingContextFromBytes(data []byte) *DecodingContext {
 
 		// always use a slice string table with a byte array since the
 		// data is already in memory
-		table = NewSliceStringTableReaderFrom(buff)
+		var err error
+		table, err = NewSliceStringTableReaderFrom(buff)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &DecodingContext{
 		Buffer: buff,
 		Table:  table,
-	}
+	}, nil
 }
 
 // NewDecodingContextFromReader creates a new DecodingContext instance using an io.Reader
 // implementation
-func NewDecodingContextFromReader(reader io.Reader) *DecodingContext {
+func NewDecodingContextFromReader(reader io.Reader) (*DecodingContext, error) {
 	var table StringTableReader
 
 	buff := util.NewBufferFromReader(reader)
@@ -615,17 +640,21 @@ func NewDecodingContextFromReader(reader io.Reader) *DecodingContext {
 		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
 
 		// create correct string table implementation
+		var err error
 		if IsBingenFileBackedStringTableEnabled() {
-			table = NewFileStringTableReaderFrom(buff, BingenFileBackedStringTableDir())
+			table, err = NewFileStringTableReaderFrom(buff, BingenFileBackedStringTableDir())
 		} else {
-			table = NewSliceStringTableReaderFrom(buff)
+			table, err = NewSliceStringTableReaderFrom(buff)
+		}
+		if err != nil {
+			return nil, err
 		}
 	}
 
 	return &DecodingContext{
 		Buffer: buff,
 		Table:  table,
-	}
+	}, nil
 }
 
 // IsStringTable returns true if the table is available
@@ -856,29 +885,25 @@ func (target *Allocation) MarshalBinaryWithContext(ctx *EncodingContext) (err er
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the Allocation type
 func (target *Allocation) UnmarshalBinary(data []byte) error {
-	ctx := NewDecodingContextFromBytes(data)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromBytes(data)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the Allocation type
 func (target *Allocation) UnmarshalBinaryFromReader(reader io.Reader) error {
-	ctx := NewDecodingContextFromReader(reader)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromReader(reader)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
@@ -1307,29 +1332,25 @@ func (target *AllocationProperties) MarshalBinaryWithContext(ctx *EncodingContex
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the AllocationProperties type
 func (target *AllocationProperties) UnmarshalBinary(data []byte) error {
-	ctx := NewDecodingContextFromBytes(data)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromBytes(data)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the AllocationProperties type
 func (target *AllocationProperties) UnmarshalBinaryFromReader(reader io.Reader) error {
-	ctx := NewDecodingContextFromReader(reader)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromReader(reader)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
@@ -1747,29 +1768,25 @@ func (target *AllocationSet) MarshalBinaryWithContext(ctx *EncodingContext) (err
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the AllocationSet type
 func (target *AllocationSet) UnmarshalBinary(data []byte) error {
-	ctx := NewDecodingContextFromBytes(data)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromBytes(data)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the AllocationSet type
 func (target *AllocationSet) UnmarshalBinaryFromReader(reader io.Reader) error {
-	ctx := NewDecodingContextFromReader(reader)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromReader(reader)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
@@ -2036,14 +2053,19 @@ func (stream *AllocationSetStream) Error() error {
 	return stream.err
 }
 
-// NewAllocationSetStream creates a new AllocationSetStream, which uses the io.Reader data to stream all internal fields of an AllocationSet instance
-func NewAllocationSetStream(reader io.Reader) BingenStream {
-	ctx := NewDecodingContextFromReader(reader)
+// NewAllocationSetStream creates a new AllocationSetStream, which uses the io.Reader data to stream all internal fields of an AllocationSet instance.
+// Returns an error if the decoding context cannot be initialized (for example,
+// an oversized or malformed string table header).
+func NewAllocationSetStream(reader io.Reader) (BingenStream, error) {
+	ctx, err := NewDecodingContextFromReader(reader)
+	if err != nil {
+		return nil, err
+	}
 
 	return &AllocationSetStream{
 		ctx:    ctx,
 		reader: reader,
-	}
+	}, nil
 }
 
 // Stream returns the iterator which will stream each field of the target type.
@@ -2419,29 +2441,25 @@ func (target *AllocationSetRange) MarshalBinaryWithContext(ctx *EncodingContext)
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the AllocationSetRange type
 func (target *AllocationSetRange) UnmarshalBinary(data []byte) error {
-	ctx := NewDecodingContextFromBytes(data)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromBytes(data)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the AllocationSetRange type
 func (target *AllocationSetRange) UnmarshalBinaryFromReader(reader io.Reader) error {
-	ctx := NewDecodingContextFromReader(reader)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromReader(reader)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
@@ -2638,29 +2656,25 @@ func (target *Any) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the Any type
 func (target *Any) UnmarshalBinary(data []byte) error {
-	ctx := NewDecodingContextFromBytes(data)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromBytes(data)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the Any type
 func (target *Any) UnmarshalBinaryFromReader(reader io.Reader) error {
-	ctx := NewDecodingContextFromReader(reader)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromReader(reader)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
@@ -2894,29 +2908,25 @@ func (target *AssetProperties) MarshalBinaryWithContext(ctx *EncodingContext) (e
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the AssetProperties type
 func (target *AssetProperties) UnmarshalBinary(data []byte) error {
-	ctx := NewDecodingContextFromBytes(data)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromBytes(data)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the AssetProperties type
 func (target *AssetProperties) UnmarshalBinaryFromReader(reader io.Reader) error {
-	ctx := NewDecodingContextFromReader(reader)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromReader(reader)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
@@ -3188,29 +3198,25 @@ func (target *AssetSet) MarshalBinaryWithContext(ctx *EncodingContext) (err erro
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the AssetSet type
 func (target *AssetSet) UnmarshalBinary(data []byte) error {
-	ctx := NewDecodingContextFromBytes(data)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromBytes(data)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the AssetSet type
 func (target *AssetSet) UnmarshalBinaryFromReader(reader io.Reader) error {
-	ctx := NewDecodingContextFromReader(reader)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromReader(reader)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
@@ -3450,14 +3456,19 @@ func (stream *AssetSetStream) Error() error {
 	return stream.err
 }
 
-// NewAssetSetStream creates a new AssetSetStream, which uses the io.Reader data to stream all internal fields of an AssetSet instance
-func NewAssetSetStream(reader io.Reader) BingenStream {
-	ctx := NewDecodingContextFromReader(reader)
+// NewAssetSetStream creates a new AssetSetStream, which uses the io.Reader data to stream all internal fields of an AssetSet instance.
+// Returns an error if the decoding context cannot be initialized (for example,
+// an oversized or malformed string table header).
+func NewAssetSetStream(reader io.Reader) (BingenStream, error) {
+	ctx, err := NewDecodingContextFromReader(reader)
+	if err != nil {
+		return nil, err
+	}
 
 	return &AssetSetStream{
 		ctx:    ctx,
 		reader: reader,
-	}
+	}, nil
 }
 
 // Stream returns the iterator which will stream each field of the target type.
@@ -3801,29 +3812,25 @@ func (target *AssetSetRange) MarshalBinaryWithContext(ctx *EncodingContext) (err
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the AssetSetRange type
 func (target *AssetSetRange) UnmarshalBinary(data []byte) error {
-	ctx := NewDecodingContextFromBytes(data)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromBytes(data)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the AssetSetRange type
 func (target *AssetSetRange) UnmarshalBinaryFromReader(reader io.Reader) error {
-	ctx := NewDecodingContextFromReader(reader)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromReader(reader)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
@@ -3955,29 +3962,25 @@ func (target *Breakdown) MarshalBinaryWithContext(ctx *EncodingContext) (err err
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the Breakdown type
 func (target *Breakdown) UnmarshalBinary(data []byte) error {
-	ctx := NewDecodingContextFromBytes(data)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromBytes(data)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the Breakdown type
 func (target *Breakdown) UnmarshalBinaryFromReader(reader io.Reader) error {
-	ctx := NewDecodingContextFromReader(reader)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromReader(reader)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
@@ -4139,29 +4142,25 @@ func (target *Cloud) MarshalBinaryWithContext(ctx *EncodingContext) (err error) 
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the Cloud type
 func (target *Cloud) UnmarshalBinary(data []byte) error {
-	ctx := NewDecodingContextFromBytes(data)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromBytes(data)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the Cloud type
 func (target *Cloud) UnmarshalBinaryFromReader(reader io.Reader) error {
-	ctx := NewDecodingContextFromReader(reader)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromReader(reader)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
@@ -4395,29 +4394,25 @@ func (target *ClusterManagement) MarshalBinaryWithContext(ctx *EncodingContext) 
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the ClusterManagement type
 func (target *ClusterManagement) UnmarshalBinary(data []byte) error {
-	ctx := NewDecodingContextFromBytes(data)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromBytes(data)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the ClusterManagement type
 func (target *ClusterManagement) UnmarshalBinaryFromReader(reader io.Reader) error {
-	ctx := NewDecodingContextFromReader(reader)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromReader(reader)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
@@ -4662,29 +4657,25 @@ func (target *Disk) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the Disk type
 func (target *Disk) UnmarshalBinary(data []byte) error {
-	ctx := NewDecodingContextFromBytes(data)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromBytes(data)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the Disk type
 func (target *Disk) UnmarshalBinaryFromReader(reader io.Reader) error {
-	ctx := NewDecodingContextFromReader(reader)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromReader(reader)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
@@ -4958,29 +4949,25 @@ func (target *LoadBalancer) MarshalBinaryWithContext(ctx *EncodingContext) (err 
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the LoadBalancer type
 func (target *LoadBalancer) UnmarshalBinary(data []byte) error {
-	ctx := NewDecodingContextFromBytes(data)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromBytes(data)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the LoadBalancer type
 func (target *LoadBalancer) UnmarshalBinaryFromReader(reader io.Reader) error {
-	ctx := NewDecodingContextFromReader(reader)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromReader(reader)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
@@ -5232,29 +5219,25 @@ func (target *Network) MarshalBinaryWithContext(ctx *EncodingContext) (err error
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the Network type
 func (target *Network) UnmarshalBinary(data []byte) error {
-	ctx := NewDecodingContextFromBytes(data)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromBytes(data)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the Network type
 func (target *Network) UnmarshalBinaryFromReader(reader io.Reader) error {
-	ctx := NewDecodingContextFromReader(reader)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromReader(reader)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
@@ -5558,29 +5541,25 @@ func (target *Node) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the Node type
 func (target *Node) UnmarshalBinary(data []byte) error {
-	ctx := NewDecodingContextFromBytes(data)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromBytes(data)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the Node type
 func (target *Node) UnmarshalBinaryFromReader(reader io.Reader) error {
-	ctx := NewDecodingContextFromReader(reader)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromReader(reader)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
@@ -5826,29 +5805,25 @@ func (target *PVAllocation) MarshalBinaryWithContext(ctx *EncodingContext) (err 
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the PVAllocation type
 func (target *PVAllocation) UnmarshalBinary(data []byte) error {
-	ctx := NewDecodingContextFromBytes(data)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromBytes(data)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the PVAllocation type
 func (target *PVAllocation) UnmarshalBinaryFromReader(reader io.Reader) error {
-	ctx := NewDecodingContextFromReader(reader)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromReader(reader)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
@@ -5943,29 +5918,25 @@ func (target *PVKey) MarshalBinaryWithContext(ctx *EncodingContext) (err error) 
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the PVKey type
 func (target *PVKey) UnmarshalBinary(data []byte) error {
-	ctx := NewDecodingContextFromBytes(data)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromBytes(data)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the PVKey type
 func (target *PVKey) UnmarshalBinaryFromReader(reader io.Reader) error {
-	ctx := NewDecodingContextFromReader(reader)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromReader(reader)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
@@ -6064,29 +6035,25 @@ func (target *RawAllocationOnlyData) MarshalBinaryWithContext(ctx *EncodingConte
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the RawAllocationOnlyData type
 func (target *RawAllocationOnlyData) UnmarshalBinary(data []byte) error {
-	ctx := NewDecodingContextFromBytes(data)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromBytes(data)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the RawAllocationOnlyData type
 func (target *RawAllocationOnlyData) UnmarshalBinaryFromReader(reader io.Reader) error {
-	ctx := NewDecodingContextFromReader(reader)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromReader(reader)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
@@ -6221,29 +6188,25 @@ func (target *SharedAsset) MarshalBinaryWithContext(ctx *EncodingContext) (err e
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the SharedAsset type
 func (target *SharedAsset) UnmarshalBinary(data []byte) error {
-	ctx := NewDecodingContextFromBytes(data)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromBytes(data)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the SharedAsset type
 func (target *SharedAsset) UnmarshalBinaryFromReader(reader io.Reader) error {
-	ctx := NewDecodingContextFromReader(reader)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromReader(reader)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
@@ -6427,29 +6390,25 @@ func (target *Window) MarshalBinaryWithContext(ctx *EncodingContext) (err error)
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the Window type
 func (target *Window) UnmarshalBinary(data []byte) error {
-	ctx := NewDecodingContextFromBytes(data)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromBytes(data)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the Window type
 func (target *Window) UnmarshalBinaryFromReader(reader io.Reader) error {
-	ctx := NewDecodingContextFromReader(reader)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromReader(reader)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of

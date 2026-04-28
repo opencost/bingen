@@ -2,6 +2,8 @@ package util
 
 import (
 	"bytes"
+	"encoding/binary"
+	"errors"
 	"io"
 	"math"
 	"strings"
@@ -97,11 +99,11 @@ func TestRoundTripLargeString(t *testing.T) {
 }
 
 // TestReadStringRejectsHugeLength verifies that a hand-crafted payload claiming
-// a multi-gigabyte string returns an empty string instead of allocating.
+// a multi-gigabyte string returns an empty string instead of allocating, and
+// records the failure on Buffer.Err() so callers can detect the rejection.
 func TestReadStringRejectsHugeLength(t *testing.T) {
 	// Encode a uint32 string length of MaxInt32 with no trailing payload.
 	var buf bytes.Buffer
-	// little-endian uint32 = MaxInt32
 	buf.WriteByte(0xFF)
 	buf.WriteByte(0xFF)
 	buf.WriteByte(0xFF)
@@ -111,6 +113,47 @@ func TestReadStringRejectsHugeLength(t *testing.T) {
 	got := r.ReadString()
 	if got != "" {
 		t.Errorf("ReadString with bogus huge length should return \"\", got %q", got)
+	}
+	if !errors.Is(r.Err(), ErrStringTooLarge) {
+		t.Errorf("Err() = %v, want ErrStringTooLarge", r.Err())
+	}
+}
+
+// TestReadStringRejectsHugeLengthReaderMode verifies the same cap is applied
+// in reader-mode, where Remaining() can't bound the length.
+func TestReadStringRejectsHugeLengthReaderMode(t *testing.T) {
+	// uint32 length = MaxStringLength + 1, just over the cap. We encode the
+	// length as little-endian bytes and feed them through an io.Reader.
+	var hdr [4]byte
+	binary.LittleEndian.PutUint32(hdr[:], uint32(MaxStringLength+1))
+
+	r := NewBufferFromReader(bytes.NewReader(hdr[:]))
+	got := r.ReadString()
+	if got != "" {
+		t.Errorf("ReadString reader-mode with oversize length should return \"\", got len=%d", len(got))
+	}
+	if !errors.Is(r.Err(), ErrStringTooLarge) {
+		t.Errorf("Err() = %v, want ErrStringTooLarge", r.Err())
+	}
+}
+
+// TestReadStringAtCap verifies that a string exactly at MaxStringLength bytes
+// in byte-buffer mode round-trips successfully (the cap is "<=" allowed).
+func TestReadStringAtCap(t *testing.T) {
+	if testing.Short() {
+		t.Skip("allocates 64 MiB")
+	}
+	// Encode a uint32 length of MaxStringLength followed by that many bytes.
+	w := NewBuffer()
+	s := strings.Repeat("a", MaxStringLength)
+	w.WriteString(s)
+	r := NewBufferFromBytes(w.Bytes())
+	got := r.ReadString()
+	if len(got) != MaxStringLength {
+		t.Errorf("ReadString at cap: got len=%d, want %d", len(got), MaxStringLength)
+	}
+	if r.Err() != nil {
+		t.Errorf("Err() = %v, want nil", r.Err())
 	}
 }
 

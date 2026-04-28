@@ -375,29 +375,25 @@
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the {{ .Type.Name }} type
 func (target *{{ .Type.Name }}) UnmarshalBinary(data []byte) error {
-	ctx := NewDecodingContextFromBytes(data)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromBytes(data)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the {{ .Type.Name }} type
 func (target *{{ .Type.Name }}) UnmarshalBinaryFromReader(reader io.Reader) error {
-	ctx := NewDecodingContextFromReader(reader)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromReader(reader)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of

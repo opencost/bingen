@@ -14,6 +14,17 @@ import (
 
 var bytePool *bufferPool = newBufferPool()
 
+// MaxStringLength is the hard upper bound on a single string read by
+// Buffer.ReadString, regardless of buffer mode. With v0.2's uint32 length
+// prefix a malicious payload could otherwise request up to ~4 GiB allocation
+// per string. 64 MiB is generous for legitimate use and tightly bounds the
+// attacker's allocation budget.
+const MaxStringLength = 64 << 20
+
+// ErrStringTooLarge is recorded on Buffer.err when ReadString sees a length
+// prefix larger than MaxStringLength.
+var ErrStringTooLarge = errors.New("bingen: string length exceeds MaxStringLength")
+
 // NonPrimitiveTypeError represents an error where the user provided a non-primitive data type for reading/writing
 var NonPrimitiveTypeError error = errors.New("Type provided to read/write does not fit inside 8 bytes.")
 
@@ -174,9 +185,14 @@ func (b *Buffer) Bytes() []byte {
 
 // Err returns the first error encountered by an operation on the buffer that
 // previously had no way to surface a failure (notably the io.Reader-mode drain
-// in Bytes). Most Read*/Write* methods continue to be best-effort; callers
-// performing critical decoding should still check the higher-level error
-// returned by their own UnmarshalBinary path.
+// in Bytes and the over-cap rejection in ReadString).
+//
+// TODO(H2): wire sticky errors through every Read*/Write* method and have the
+// generated UnmarshalBinaryWithContext epilogue check Err() before returning
+// nil. That refactor touches every generated codec consumer and is deferred
+// to its own PR; today most Read*/Write* methods remain best-effort and
+// callers performing critical decoding should rely on the recover() backstop
+// in the generated unmarshaller.
 func (b *Buffer) Err() error {
 	return b.err
 }
@@ -354,15 +370,23 @@ func (b *Buffer) ReadFloat64() float64 {
 // ReadString reads a uint32 value from the buffer representing the string's length,
 // then uses the length to extract the exact length []byte representing the string.
 //
-// In byte-buffer mode the requested length is bounded by the unread byte count
-// to prevent a crafted payload from triggering a huge allocation. In
-// reader-mode the underlying read will fail naturally if the stream doesn't
-// contain enough bytes; the bufio.Reader's incidental buffer size is not a
-// reliable bound and would falsely reject valid large strings.
+// The decoded length is unconditionally capped at MaxStringLength to prevent
+// a crafted payload from triggering huge allocations. In byte-buffer mode the
+// length is also bounded by the unread byte count. In reader-mode the
+// underlying read will fail naturally if the stream is short; the bufio.Reader's
+// incidental buffer size is not a reliable bound and would falsely reject
+// valid large strings. On rejection an empty string is returned and the error
+// is recorded on Buffer.Err().
 func (b *Buffer) ReadString() string {
 	var l uint32
 	if b.bw != nil {
 		readUint32(b.bw, &l)
+		if uint64(l) > MaxStringLength {
+			if b.err == nil {
+				b.err = fmt.Errorf("%w: %d > %d", ErrStringTooLarge, l, MaxStringLength)
+			}
+			return ""
+		}
 		if uint64(l) > uint64(b.bw.Len()) {
 			return ""
 		}
@@ -370,6 +394,12 @@ func (b *Buffer) ReadString() string {
 	}
 
 	readBuffUint32(b.b, &l)
+	if uint64(l) > MaxStringLength {
+		if b.err == nil {
+			b.err = fmt.Errorf("%w: %d > %d", ErrStringTooLarge, l, MaxStringLength)
+		}
+		return ""
+	}
 
 	bytes := bytePool.Get(int(l))
 	defer bytePool.Put(bytes)

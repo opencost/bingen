@@ -32,6 +32,12 @@ const (
 	// table (where each index is encoded as a string entry in the resource
 	BinaryTagStringTable string = "BGST"
 
+	// MaxStringTableEntries is the hard upper bound on the number of entries
+	// in a decoded string table, applied unconditionally to bound the
+	// attacker-controlled allocation in NewSliceStringTableReaderFrom and
+	// NewFileStringTableReaderFrom.
+	MaxStringTableEntries = 1 << 20
+
 	// ContainerExampleCodecVersion is used for any resources listed in the ContainerExample version set
 	ContainerExampleCodecVersion uint8 = 2
 )
@@ -183,7 +189,10 @@ func resolveType(t string) (pkg string, name string, isPtr bool) {
 //--------------------------------------------------------------------------
 
 // StreamFactoryFunc is an alias for a func that creates a BingenStream implementation.
-type StreamFactoryFunc func(io.Reader) BingenStream
+// It returns an error to allow the constructor to surface decoding-context
+// failures (e.g. an oversized or malformed string table) up to the caller
+// rather than panicking.
+type StreamFactoryFunc func(io.Reader) (BingenStream, error)
 
 // Generated streamable factory map for finding the specific new stream methods
 // by T type
@@ -202,7 +211,7 @@ func NewStreamFor[T any](reader io.Reader) (BingenStream, error) {
 		return nil, fmt.Errorf("the type: %s is not a registered bingen streamable type", typeKey.Name())
 	}
 
-	return factory(reader), nil
+	return factory(reader)
 }
 
 // BingenStream is the stream interface for all streamable types
@@ -350,18 +359,20 @@ type SliceStringTableReader struct {
 // NewSliceStringTableReaderFrom creates a new SliceStringTableReader instance loading
 // data directly from the buffer. The buffer's position should start at the table length.
 //
-// In byte-buffer mode the table length is bounded by the buffer's remaining
-// bytes to reject DoS-shaped payloads; in reader-mode buffer.Remaining()
-// returns -1 ("unknown") and the underlying read will fail naturally if the
-// stream is short. The panic is recovered by Unmarshal*WithContext's deferred
-// recover and surfaced to the caller as a normal error.
-func NewSliceStringTableReaderFrom(buffer *util.Buffer) StringTableReader {
+// The table length is unconditionally capped at MaxStringTableEntries to bound
+// the attacker-controlled allocation. In byte-buffer mode it is also bounded
+// by the buffer's remaining bytes; in reader-mode buffer.Remaining() returns
+// -1 and the underlying read fails naturally if the stream is short.
+func NewSliceStringTableReaderFrom(buffer *util.Buffer) (StringTableReader, error) {
 	tl := buffer.ReadInt()
 	if tl < 0 {
-		panic(fmt.Errorf("%s: invalid string table length: %d", GeneratorPackageName, tl))
+		return nil, fmt.Errorf("%s: invalid string table length: %d", GeneratorPackageName, tl)
+	}
+	if tl > MaxStringTableEntries {
+		return nil, fmt.Errorf("%s: string table length %d exceeds MaxStringTableEntries %d", GeneratorPackageName, tl, MaxStringTableEntries)
 	}
 	if rem := buffer.Remaining(); rem >= 0 && tl > rem {
-		panic(fmt.Errorf("%s: string table length %d exceeds remaining bytes %d", GeneratorPackageName, tl, rem))
+		return nil, fmt.Errorf("%s: string table length %d exceeds remaining bytes %d", GeneratorPackageName, tl, rem)
 	}
 
 	var table []string
@@ -374,7 +385,7 @@ func NewSliceStringTableReaderFrom(buffer *util.Buffer) StringTableReader {
 
 	return &SliceStringTableReader{
 		table: table,
-	}
+	}, nil
 }
 
 // At returns the string entry at a specific index, or panics on out of bounds.
@@ -416,36 +427,46 @@ type FileStringTableReader struct {
 	refs []fileStringRef
 }
 
-// NewFileStringTableFromBuffer reads exactly tl length-prefixed (uint16) string payloads from buffer
-// and appends each payload to a new temp file. It does not retain full strings in memory.
-func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string) StringTableReader {
+// NewFileStringTableReaderFrom reads exactly tl length-prefixed string payloads
+// from buffer and appends each payload to a new temp file. It does not retain
+// full strings in memory.
+//
+// The table length is unconditionally capped at MaxStringTableEntries to bound
+// the attacker-controlled allocation of refs. The temp file is closed and
+// removed on any failure path.
+func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string) (StringTableReader, error) {
 	// helper func to cast a string in-place to a byte slice.
 	// NOTE: Return value is READ-ONLY. DO NOT MODIFY!
 	byteSliceFor := func(s string) []byte {
 		return unsafe.Slice(unsafe.StringData(s), len(s))
 	}
 
-	err := os.MkdirAll(dir, 0755)
-	if err != nil {
-		panic(fmt.Errorf("%s: failed to create string table directory: %w", GeneratorPackageName, err))
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return nil, fmt.Errorf("%s: failed to create string table directory: %w", GeneratorPackageName, err)
 	}
 
 	f, err := os.CreateTemp(dir, fmt.Sprintf("%s-bgst-*", GeneratorPackageName))
 	if err != nil {
-		panic(fmt.Errorf("%s: failed to create string table file: %w", GeneratorPackageName, err))
+		return nil, fmt.Errorf("%s: failed to create string table file: %w", GeneratorPackageName, err)
 	}
 
-	var writeErr error
-	defer func() {
-		if writeErr != nil {
-			_ = f.Close()
+	cleanup := func() {
+		path := f.Name()
+		_ = f.Close()
+		if path != "" {
+			_ = os.Remove(path)
 		}
-	}()
+	}
 
 	// table length
 	tl := buffer.ReadInt()
 	if tl < 0 {
-		panic(fmt.Errorf("%s: invalid string table length: %d", GeneratorPackageName, tl))
+		cleanup()
+		return nil, fmt.Errorf("%s: invalid string table length: %d", GeneratorPackageName, tl)
+	}
+	if tl > MaxStringTableEntries {
+		cleanup()
+		return nil, fmt.Errorf("%s: string table length %d exceeds MaxStringTableEntries %d", GeneratorPackageName, tl, MaxStringTableEntries)
 	}
 
 	var refs []fileStringRef
@@ -459,12 +480,12 @@ func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string) StringTableRe
 			if len(payload) > 0 {
 				off, err = f.Seek(0, io.SeekEnd)
 				if err != nil {
-					writeErr = fmt.Errorf("%s: failed to seek string table file: %w", GeneratorPackageName, err)
-					panic(writeErr)
+					cleanup()
+					return nil, fmt.Errorf("%s: failed to seek string table file: %w", GeneratorPackageName, err)
 				}
-				if _, err := f.Write(payload); err != nil {
-					writeErr = fmt.Errorf("%s: failed to write string table entry %d: %w", GeneratorPackageName, i, err)
-					panic(writeErr)
+				if _, werr := f.Write(payload); werr != nil {
+					cleanup()
+					return nil, fmt.Errorf("%s: failed to write string table entry %d: %w", GeneratorPackageName, i, werr)
 				}
 			}
 
@@ -478,7 +499,7 @@ func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string) StringTableRe
 	return &FileStringTableReader{
 		f:    f,
 		refs: refs,
-	}
+	}, nil
 }
 
 // At returns the string from the internal file using the reference's offset and length.
@@ -557,7 +578,7 @@ type DecodingContext struct {
 }
 
 // NewDecodingContextFromBytes creates a new DecodingContext instance using an byte slice
-func NewDecodingContextFromBytes(data []byte) *DecodingContext {
+func NewDecodingContextFromBytes(data []byte) (*DecodingContext, error) {
 	var table StringTableReader
 
 	buff := util.NewBufferFromBytes(data)
@@ -568,18 +589,22 @@ func NewDecodingContextFromBytes(data []byte) *DecodingContext {
 
 		// always use a slice string table with a byte array since the
 		// data is already in memory
-		table = NewSliceStringTableReaderFrom(buff)
+		var err error
+		table, err = NewSliceStringTableReaderFrom(buff)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &DecodingContext{
 		Buffer: buff,
 		Table:  table,
-	}
+	}, nil
 }
 
 // NewDecodingContextFromReader creates a new DecodingContext instance using an io.Reader
 // implementation
-func NewDecodingContextFromReader(reader io.Reader) *DecodingContext {
+func NewDecodingContextFromReader(reader io.Reader) (*DecodingContext, error) {
 	var table StringTableReader
 
 	buff := util.NewBufferFromReader(reader)
@@ -588,17 +613,21 @@ func NewDecodingContextFromReader(reader io.Reader) *DecodingContext {
 		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
 
 		// create correct string table implementation
+		var err error
 		if IsBingenFileBackedStringTableEnabled() {
-			table = NewFileStringTableReaderFrom(buff, BingenFileBackedStringTableDir())
+			table, err = NewFileStringTableReaderFrom(buff, BingenFileBackedStringTableDir())
 		} else {
-			table = NewSliceStringTableReaderFrom(buff)
+			table, err = NewSliceStringTableReaderFrom(buff)
+		}
+		if err != nil {
+			return nil, err
 		}
 	}
 
 	return &DecodingContext{
 		Buffer: buff,
 		Table:  table,
-	}
+	}, nil
 }
 
 // IsStringTable returns true if the table is available
@@ -713,29 +742,25 @@ func (target *Container) MarshalBinaryWithContext(ctx *EncodingContext) (err err
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the Container type
 func (target *Container) UnmarshalBinary(data []byte) error {
-	ctx := NewDecodingContextFromBytes(data)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromBytes(data)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the Container type
 func (target *Container) UnmarshalBinaryFromReader(reader io.Reader) error {
-	ctx := NewDecodingContextFromReader(reader)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromReader(reader)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
@@ -859,14 +884,19 @@ func (stream *ContainerStream) Error() error {
 	return stream.err
 }
 
-// NewContainerStream creates a new ContainerStream, which uses the io.Reader data to stream all internal fields of an Container instance
-func NewContainerStream(reader io.Reader) BingenStream {
-	ctx := NewDecodingContextFromReader(reader)
+// NewContainerStream creates a new ContainerStream, which uses the io.Reader data to stream all internal fields of an Container instance.
+// Returns an error if the decoding context cannot be initialized (for example,
+// an oversized or malformed string table header).
+func NewContainerStream(reader io.Reader) (BingenStream, error) {
+	ctx, err := NewDecodingContextFromReader(reader)
+	if err != nil {
+		return nil, err
+	}
 
 	return &ContainerStream{
 		ctx:    ctx,
 		reader: reader,
-	}
+	}, nil
 }
 
 // Stream returns the iterator which will stream each field of the target type.
