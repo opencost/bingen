@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"math"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -38,6 +39,11 @@ func TestRemainingByteBufferModeIsExact(t *testing.T) {
 // TestRoundTripIntFullRange verifies that int values across the full int64 range
 // survive a write/read pair. The previous implementation truncated to int32 and
 // silently corrupted any value outside that range.
+//
+// The over-int32 values are gated on strconv.IntSize so the test compiles on
+// 32-bit platforms (where math.MaxInt64 isn't representable as an int constant).
+// The values themselves are constructed via int64-typed locals to avoid
+// untyped-constant overflow at compile time.
 func TestRoundTripIntFullRange(t *testing.T) {
 	values := []int{
 		0,
@@ -45,10 +51,17 @@ func TestRoundTripIntFullRange(t *testing.T) {
 		-1,
 		math.MaxInt32,
 		math.MinInt32,
-		math.MaxInt32 + 1,
-		math.MinInt32 - 1,
-		math.MaxInt64,
-		math.MinInt64,
+	}
+	if strconv.IntSize == 64 {
+		var v int64
+		v = math.MaxInt32 + 1
+		values = append(values, int(v))
+		v = math.MinInt32 - 1
+		values = append(values, int(v))
+		v = math.MaxInt64
+		values = append(values, int(v))
+		v = math.MinInt64
+		values = append(values, int(v))
 	}
 
 	for _, v := range values {
@@ -62,14 +75,20 @@ func TestRoundTripIntFullRange(t *testing.T) {
 	}
 }
 
-// TestRoundTripUintFullRange verifies the corresponding behavior for uint.
+// TestRoundTripUintFullRange verifies the corresponding behavior for uint. The
+// over-uint32 values are gated on strconv.IntSize for 32-bit compile compat.
 func TestRoundTripUintFullRange(t *testing.T) {
 	values := []uint{
 		0,
 		1,
 		math.MaxUint32,
-		math.MaxUint32 + 1,
-		math.MaxUint64,
+	}
+	if strconv.IntSize == 64 {
+		var v uint64
+		v = math.MaxUint32 + 1
+		values = append(values, uint(v))
+		v = math.MaxUint64
+		values = append(values, uint(v))
 	}
 
 	for _, v := range values {
@@ -134,6 +153,25 @@ func TestReadStringRejectsHugeLengthReaderMode(t *testing.T) {
 	}
 	if !errors.Is(r.Err(), ErrStringTooLarge) {
 		t.Errorf("Err() = %v, want ErrStringTooLarge", r.Err())
+	}
+}
+
+// TestReadIntOverflowSetsErr verifies that decoding an int that doesn't fit
+// the host int width records the helper's overflow error on Buffer.Err().
+// On a 64-bit host the helpers can't overflow (every int64 fits in int), so
+// this test only runs on 32-bit. We synthesize the test by writing an int64
+// and asserting the reader-mode int read sets b.err.
+func TestReadIntOverflowSetsErr(t *testing.T) {
+	if strconv.IntSize >= 64 {
+		t.Skip("int is 64-bit on this host; readInt cannot overflow")
+	}
+
+	w := NewBuffer()
+	w.WriteInt64(math.MaxInt64) // 8 bytes — wire format for int is also 8 bytes
+	r := NewBufferFromBytes(w.Bytes())
+	_ = r.ReadInt()
+	if r.Err() == nil {
+		t.Errorf("ReadInt with int64 value above host int range should set Err()")
 	}
 }
 

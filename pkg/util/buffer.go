@@ -223,15 +223,21 @@ func (b *Buffer) ReadBool() bool {
 	return i
 }
 
-// ReadInt reads an int value from the buffer.
+// ReadInt reads an int value from the buffer. Overflow errors from a
+// host-int-too-narrow decode (32-bit hosts reading a value above MaxInt32) are
+// recorded on Buffer.Err() so callers can surface them rather than silently
+// receiving the zero value.
 func (b *Buffer) ReadInt() int {
 	var i int
+	var err error
 	if b.bw != nil {
-		readInt(b.bw, &i)
-		return i
+		err = readInt(b.bw, &i)
+	} else {
+		err = readBuffInt(b.b, &i)
 	}
-
-	readBuffInt(b.b, &i)
+	if err != nil && b.err == nil {
+		b.err = err
+	}
 	return i
 }
 
@@ -283,15 +289,19 @@ func (b *Buffer) ReadInt64() int64 {
 	return i
 }
 
-// ReadUInt reads a uint value from the buffer.
+// ReadUInt reads a uint value from the buffer. Overflow errors are recorded on
+// Buffer.Err() (see ReadInt for the rationale).
 func (b *Buffer) ReadUInt() uint {
 	var i uint
+	var err error
 	if b.bw != nil {
-		readUint(b.bw, &i)
-		return i
+		err = readUint(b.bw, &i)
+	} else {
+		err = readBuffUint(b.b, &i)
 	}
-
-	readBuffUint(b.b, &i)
+	if err != nil && b.err == nil {
+		b.err = err
+	}
 	return i
 }
 
@@ -443,7 +453,10 @@ func (b *Buffer) ReadBytes(length int) []byte {
 		if b.err == nil {
 			b.err = fmt.Errorf("ReadBytes: %w", err)
 		}
-		return bytes
+		// Return nil rather than a partially-filled slice — the docstring
+		// guarantees nil-on-failure and callers should not consume corrupted
+		// or short data.
+		return nil
 	}
 
 	return bytes

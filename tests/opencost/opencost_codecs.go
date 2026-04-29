@@ -39,6 +39,14 @@ const (
 	// NewFileStringTableReaderFrom.
 	MaxStringTableEntries = 1 << 20
 
+	// MaxContainerLength is the hard upper bound on the number of elements in
+	// a decoded slice or map, applied unconditionally in generated
+	// unmarshallers and streamers. The byte-buffer-mode path also bounds the
+	// length by the buffer's remaining bytes; this constant additionally
+	// protects reader-mode decoding (where Remaining() returns -1) from
+	// allocation DoS via a crafted oversized length prefix.
+	MaxContainerLength = 1 << 24
+
 	// AllocationCodecVersion is used for any resources listed in the Allocation version set
 	AllocationCodecVersion uint8 = 16
 
@@ -1044,8 +1052,10 @@ func (target *Allocation) UnmarshalBinaryWithContext(ctx *DecodingContext) (err 
 		if gg < 0 {
 			return fmt.Errorf("bingen: invalid map length %d", gg)
 		}
-		// Remaining() returns -1 in reader-mode; only apply the upper bound when
-		// the buffer is byte-backed and the value is meaningful.
+		// Unconditional cap to bound reader-mode allocations (see slice template).
+		if gg > MaxContainerLength {
+			return fmt.Errorf("bingen: map length %d exceeds MaxContainerLength %d", gg, MaxContainerLength)
+		}
 		if rem := buff.Remaining(); rem >= 0 && gg > rem {
 			return fmt.Errorf("bingen: map length %d exceeds remaining bytes %d", gg, rem)
 		}
@@ -1459,9 +1469,14 @@ func (target *AllocationProperties) UnmarshalBinaryWithContext(ctx *DecodingCont
 		if bb < 0 {
 			return fmt.Errorf("bingen: invalid slice length %d", bb)
 		}
-		// In byte-buffer mode Remaining() upper-bounds the length to reject
-		// length-prefix DoS; in reader-mode Remaining() returns -1 ("unknown") and
-		// we trust the underlying read to fail if the stream is short.
+		// MaxContainerLength is an unconditional cap that bounds reader-mode
+		// decoding too (where Remaining() returns -1 and the upper-bound check
+		// below is skipped). Without this, a crafted payload could advertise a
+		// huge slice length and force make() to allocate before the underlying
+		// read fails.
+		if bb > MaxContainerLength {
+			return fmt.Errorf("bingen: slice length %d exceeds MaxContainerLength %d", bb, MaxContainerLength)
+		}
 		if rem := buff.Remaining(); rem >= 0 && bb > rem {
 			return fmt.Errorf("bingen: slice length %d exceeds remaining bytes %d", bb, rem)
 		}
@@ -1505,8 +1520,10 @@ func (target *AllocationProperties) UnmarshalBinaryWithContext(ctx *DecodingCont
 		if oo < 0 {
 			return fmt.Errorf("bingen: invalid map length %d", oo)
 		}
-		// Remaining() returns -1 in reader-mode; only apply the upper bound when
-		// the buffer is byte-backed and the value is meaningful.
+		// Unconditional cap to bound reader-mode allocations (see slice template).
+		if oo > MaxContainerLength {
+			return fmt.Errorf("bingen: map length %d exceeds MaxContainerLength %d", oo, MaxContainerLength)
+		}
 		if rem := buff.Remaining(); rem >= 0 && oo > rem {
 			return fmt.Errorf("bingen: map length %d exceeds remaining bytes %d", oo, rem)
 		}
@@ -1554,8 +1571,10 @@ func (target *AllocationProperties) UnmarshalBinaryWithContext(ctx *DecodingCont
 		if yy < 0 {
 			return fmt.Errorf("bingen: invalid map length %d", yy)
 		}
-		// Remaining() returns -1 in reader-mode; only apply the upper bound when
-		// the buffer is byte-backed and the value is meaningful.
+		// Unconditional cap to bound reader-mode allocations (see slice template).
+		if yy > MaxContainerLength {
+			return fmt.Errorf("bingen: map length %d exceeds MaxContainerLength %d", yy, MaxContainerLength)
+		}
 		if rem := buff.Remaining(); rem >= 0 && yy > rem {
 			return fmt.Errorf("bingen: map length %d exceeds remaining bytes %d", yy, rem)
 		}
@@ -1825,8 +1844,10 @@ func (target *AllocationSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (e
 		if b < 0 {
 			return fmt.Errorf("bingen: invalid map length %d", b)
 		}
-		// Remaining() returns -1 in reader-mode; only apply the upper bound when
-		// the buffer is byte-backed and the value is meaningful.
+		// Unconditional cap to bound reader-mode allocations (see slice template).
+		if b > MaxContainerLength {
+			return fmt.Errorf("bingen: map length %d exceeds MaxContainerLength %d", b, MaxContainerLength)
+		}
 		if rem := buff.Remaining(); rem >= 0 && b > rem {
 			return fmt.Errorf("bingen: map length %d exceeds remaining bytes %d", b, rem)
 		}
@@ -1873,8 +1894,10 @@ func (target *AllocationSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (e
 		if h < 0 {
 			return fmt.Errorf("bingen: invalid map length %d", h)
 		}
-		// Remaining() returns -1 in reader-mode; only apply the upper bound when
-		// the buffer is byte-backed and the value is meaningful.
+		// Unconditional cap to bound reader-mode allocations (see slice template).
+		if h > MaxContainerLength {
+			return fmt.Errorf("bingen: map length %d exceeds MaxContainerLength %d", h, MaxContainerLength)
+		}
 		if rem := buff.Remaining(); rem >= 0 && h > rem {
 			return fmt.Errorf("bingen: map length %d exceeds remaining bytes %d", h, rem)
 		}
@@ -1910,8 +1933,10 @@ func (target *AllocationSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (e
 		if q < 0 {
 			return fmt.Errorf("bingen: invalid map length %d", q)
 		}
-		// Remaining() returns -1 in reader-mode; only apply the upper bound when
-		// the buffer is byte-backed and the value is meaningful.
+		// Unconditional cap to bound reader-mode allocations (see slice template).
+		if q > MaxContainerLength {
+			return fmt.Errorf("bingen: map length %d exceeds MaxContainerLength %d", q, MaxContainerLength)
+		}
 		if rem := buff.Remaining(); rem >= 0 && q > rem {
 			return fmt.Errorf("bingen: map length %d exceeds remaining bytes %d", q, rem)
 		}
@@ -1967,9 +1992,14 @@ func (target *AllocationSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (e
 		if cc < 0 {
 			return fmt.Errorf("bingen: invalid slice length %d", cc)
 		}
-		// In byte-buffer mode Remaining() upper-bounds the length to reject
-		// length-prefix DoS; in reader-mode Remaining() returns -1 ("unknown") and
-		// we trust the underlying read to fail if the stream is short.
+		// MaxContainerLength is an unconditional cap that bounds reader-mode
+		// decoding too (where Remaining() returns -1 and the upper-bound check
+		// below is skipped). Without this, a crafted payload could advertise a
+		// huge slice length and force make() to allocate before the underlying
+		// read fails.
+		if cc > MaxContainerLength {
+			return fmt.Errorf("bingen: slice length %d exceeds MaxContainerLength %d", cc, MaxContainerLength)
+		}
 		if rem := buff.Remaining(); rem >= 0 && cc > rem {
 			return fmt.Errorf("bingen: slice length %d exceeds remaining bytes %d", cc, rem)
 		}
@@ -2001,9 +2031,14 @@ func (target *AllocationSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (e
 		if ll < 0 {
 			return fmt.Errorf("bingen: invalid slice length %d", ll)
 		}
-		// In byte-buffer mode Remaining() upper-bounds the length to reject
-		// length-prefix DoS; in reader-mode Remaining() returns -1 ("unknown") and
-		// we trust the underlying read to fail if the stream is short.
+		// MaxContainerLength is an unconditional cap that bounds reader-mode
+		// decoding too (where Remaining() returns -1 and the upper-bound check
+		// below is skipped). Without this, a crafted payload could advertise a
+		// huge slice length and force make() to allocate before the underlying
+		// read fails.
+		if ll > MaxContainerLength {
+			return fmt.Errorf("bingen: slice length %d exceeds MaxContainerLength %d", ll, MaxContainerLength)
+		}
 		if rem := buff.Remaining(); rem >= 0 && ll > rem {
 			return fmt.Errorf("bingen: slice length %d exceeds remaining bytes %d", ll, rem)
 		}
@@ -2103,6 +2138,11 @@ func (stream *AllocationSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVa
 				return
 
 			}
+			if a > MaxContainerLength {
+				stream.err = fmt.Errorf("bingen: map length %d exceeds MaxContainerLength %d", a, MaxContainerLength)
+				return
+
+			}
 			if rem := buff.Remaining(); rem >= 0 && a > rem {
 				stream.err = fmt.Errorf("bingen: map length %d exceeds remaining bytes %d", a, rem)
 				return
@@ -2162,6 +2202,11 @@ func (stream *AllocationSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVa
 				return
 
 			}
+			if f > MaxContainerLength {
+				stream.err = fmt.Errorf("bingen: map length %d exceeds MaxContainerLength %d", f, MaxContainerLength)
+				return
+
+			}
 			if rem := buff.Remaining(); rem >= 0 && f > rem {
 				stream.err = fmt.Errorf("bingen: map length %d exceeds remaining bytes %d", f, rem)
 				return
@@ -2204,6 +2249,11 @@ func (stream *AllocationSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVa
 			n := buff.ReadInt() // map len
 			if n < 0 {
 				stream.err = fmt.Errorf("bingen: invalid map length %d", n)
+				return
+
+			}
+			if n > MaxContainerLength {
+				stream.err = fmt.Errorf("bingen: map length %d exceeds MaxContainerLength %d", n, MaxContainerLength)
 				return
 
 			}
@@ -2292,7 +2342,13 @@ func (stream *AllocationSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVa
 
 			}
 			// Streaming reads almost always come from an io.Reader, where Remaining()
-			// returns -1; the upper-bound check only fires for the byte-buffer case.
+			// returns -1. MaxContainerLength is the unconditional cap; the
+			// remaining-bytes check below only fires for the byte-buffer case.
+			if aa > MaxContainerLength {
+				stream.err = fmt.Errorf("bingen: slice length %d exceeds MaxContainerLength %d", aa, MaxContainerLength)
+				return
+
+			}
 			if rem := buff.Remaining(); rem >= 0 && aa > rem {
 				stream.err = fmt.Errorf("bingen: slice length %d exceeds remaining bytes %d", aa, rem)
 				return
@@ -2336,7 +2392,13 @@ func (stream *AllocationSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenVa
 
 			}
 			// Streaming reads almost always come from an io.Reader, where Remaining()
-			// returns -1; the upper-bound check only fires for the byte-buffer case.
+			// returns -1. MaxContainerLength is the unconditional cap; the
+			// remaining-bytes check below only fires for the byte-buffer case.
+			if ff > MaxContainerLength {
+				stream.err = fmt.Errorf("bingen: slice length %d exceeds MaxContainerLength %d", ff, MaxContainerLength)
+				return
+
+			}
 			if rem := buff.Remaining(); rem >= 0 && ff > rem {
 				stream.err = fmt.Errorf("bingen: slice length %d exceeds remaining bytes %d", ff, rem)
 				return
@@ -2498,9 +2560,14 @@ func (target *AllocationSetRange) UnmarshalBinaryWithContext(ctx *DecodingContex
 		if b < 0 {
 			return fmt.Errorf("bingen: invalid slice length %d", b)
 		}
-		// In byte-buffer mode Remaining() upper-bounds the length to reject
-		// length-prefix DoS; in reader-mode Remaining() returns -1 ("unknown") and
-		// we trust the underlying read to fail if the stream is short.
+		// MaxContainerLength is an unconditional cap that bounds reader-mode
+		// decoding too (where Remaining() returns -1 and the upper-bound check
+		// below is skipped). Without this, a crafted payload could advertise a
+		// huge slice length and force make() to allocate before the underlying
+		// read fails.
+		if b > MaxContainerLength {
+			return fmt.Errorf("bingen: slice length %d exceeds MaxContainerLength %d", b, MaxContainerLength)
+		}
 		if rem := buff.Remaining(); rem >= 0 && b > rem {
 			return fmt.Errorf("bingen: slice length %d exceeds remaining bytes %d", b, rem)
 		}
@@ -2715,8 +2782,10 @@ func (target *Any) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) 
 		if c < 0 {
 			return fmt.Errorf("bingen: invalid map length %d", c)
 		}
-		// Remaining() returns -1 in reader-mode; only apply the upper bound when
-		// the buffer is byte-backed and the value is meaningful.
+		// Unconditional cap to bound reader-mode allocations (see slice template).
+		if c > MaxContainerLength {
+			return fmt.Errorf("bingen: map length %d exceeds MaxContainerLength %d", c, MaxContainerLength)
+		}
 		if rem := buff.Remaining(); rem >= 0 && c > rem {
 			return fmt.Errorf("bingen: map length %d exceeds remaining bytes %d", c, rem)
 		}
@@ -3255,9 +3324,14 @@ func (target *AssetSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (err er
 		if b < 0 {
 			return fmt.Errorf("bingen: invalid slice length %d", b)
 		}
-		// In byte-buffer mode Remaining() upper-bounds the length to reject
-		// length-prefix DoS; in reader-mode Remaining() returns -1 ("unknown") and
-		// we trust the underlying read to fail if the stream is short.
+		// MaxContainerLength is an unconditional cap that bounds reader-mode
+		// decoding too (where Remaining() returns -1 and the upper-bound check
+		// below is skipped). Without this, a crafted payload could advertise a
+		// huge slice length and force make() to allocate before the underlying
+		// read fails.
+		if b > MaxContainerLength {
+			return fmt.Errorf("bingen: slice length %d exceeds MaxContainerLength %d", b, MaxContainerLength)
+		}
 		if rem := buff.Remaining(); rem >= 0 && b > rem {
 			return fmt.Errorf("bingen: slice length %d exceeds remaining bytes %d", b, rem)
 		}
@@ -3289,8 +3363,10 @@ func (target *AssetSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (err er
 		if h < 0 {
 			return fmt.Errorf("bingen: invalid map length %d", h)
 		}
-		// Remaining() returns -1 in reader-mode; only apply the upper bound when
-		// the buffer is byte-backed and the value is meaningful.
+		// Unconditional cap to bound reader-mode allocations (see slice template).
+		if h > MaxContainerLength {
+			return fmt.Errorf("bingen: map length %d exceeds MaxContainerLength %d", h, MaxContainerLength)
+		}
 		if rem := buff.Remaining(); rem >= 0 && h > rem {
 			return fmt.Errorf("bingen: map length %d exceeds remaining bytes %d", h, rem)
 		}
@@ -3367,9 +3443,14 @@ func (target *AssetSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (err er
 		if x < 0 {
 			return fmt.Errorf("bingen: invalid slice length %d", x)
 		}
-		// In byte-buffer mode Remaining() upper-bounds the length to reject
-		// length-prefix DoS; in reader-mode Remaining() returns -1 ("unknown") and
-		// we trust the underlying read to fail if the stream is short.
+		// MaxContainerLength is an unconditional cap that bounds reader-mode
+		// decoding too (where Remaining() returns -1 and the upper-bound check
+		// below is skipped). Without this, a crafted payload could advertise a
+		// huge slice length and force make() to allocate before the underlying
+		// read fails.
+		if x > MaxContainerLength {
+			return fmt.Errorf("bingen: slice length %d exceeds MaxContainerLength %d", x, MaxContainerLength)
+		}
 		if rem := buff.Remaining(); rem >= 0 && x > rem {
 			return fmt.Errorf("bingen: slice length %d exceeds remaining bytes %d", x, rem)
 		}
@@ -3401,9 +3482,14 @@ func (target *AssetSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (err er
 		if ee < 0 {
 			return fmt.Errorf("bingen: invalid slice length %d", ee)
 		}
-		// In byte-buffer mode Remaining() upper-bounds the length to reject
-		// length-prefix DoS; in reader-mode Remaining() returns -1 ("unknown") and
-		// we trust the underlying read to fail if the stream is short.
+		// MaxContainerLength is an unconditional cap that bounds reader-mode
+		// decoding too (where Remaining() returns -1 and the upper-bound check
+		// below is skipped). Without this, a crafted payload could advertise a
+		// huge slice length and force make() to allocate before the underlying
+		// read fails.
+		if ee > MaxContainerLength {
+			return fmt.Errorf("bingen: slice length %d exceeds MaxContainerLength %d", ee, MaxContainerLength)
+		}
 		if rem := buff.Remaining(); rem >= 0 && ee > rem {
 			return fmt.Errorf("bingen: slice length %d exceeds remaining bytes %d", ee, rem)
 		}
@@ -3507,7 +3593,13 @@ func (stream *AssetSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] 
 
 			}
 			// Streaming reads almost always come from an io.Reader, where Remaining()
-			// returns -1; the upper-bound check only fires for the byte-buffer case.
+			// returns -1. MaxContainerLength is the unconditional cap; the
+			// remaining-bytes check below only fires for the byte-buffer case.
+			if a > MaxContainerLength {
+				stream.err = fmt.Errorf("bingen: slice length %d exceeds MaxContainerLength %d", a, MaxContainerLength)
+				return
+
+			}
 			if rem := buff.Remaining(); rem >= 0 && a > rem {
 				stream.err = fmt.Errorf("bingen: slice length %d exceeds remaining bytes %d", a, rem)
 				return
@@ -3547,6 +3639,11 @@ func (stream *AssetSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] 
 			f := buff.ReadInt() // map len
 			if f < 0 {
 				stream.err = fmt.Errorf("bingen: invalid map length %d", f)
+				return
+
+			}
+			if f > MaxContainerLength {
+				stream.err = fmt.Errorf("bingen: map length %d exceeds MaxContainerLength %d", f, MaxContainerLength)
 				return
 
 			}
@@ -3663,7 +3760,13 @@ func (stream *AssetSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] 
 
 			}
 			// Streaming reads almost always come from an io.Reader, where Remaining()
-			// returns -1; the upper-bound check only fires for the byte-buffer case.
+			// returns -1. MaxContainerLength is the unconditional cap; the
+			// remaining-bytes check below only fires for the byte-buffer case.
+			if w > MaxContainerLength {
+				stream.err = fmt.Errorf("bingen: slice length %d exceeds MaxContainerLength %d", w, MaxContainerLength)
+				return
+
+			}
 			if rem := buff.Remaining(); rem >= 0 && w > rem {
 				stream.err = fmt.Errorf("bingen: slice length %d exceeds remaining bytes %d", w, rem)
 				return
@@ -3707,7 +3810,13 @@ func (stream *AssetSetStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] 
 
 			}
 			// Streaming reads almost always come from an io.Reader, where Remaining()
-			// returns -1; the upper-bound check only fires for the byte-buffer case.
+			// returns -1. MaxContainerLength is the unconditional cap; the
+			// remaining-bytes check below only fires for the byte-buffer case.
+			if cc > MaxContainerLength {
+				stream.err = fmt.Errorf("bingen: slice length %d exceeds MaxContainerLength %d", cc, MaxContainerLength)
+				return
+
+			}
 			if rem := buff.Remaining(); rem >= 0 && cc > rem {
 				stream.err = fmt.Errorf("bingen: slice length %d exceeds remaining bytes %d", cc, rem)
 				return
@@ -3869,9 +3978,14 @@ func (target *AssetSetRange) UnmarshalBinaryWithContext(ctx *DecodingContext) (e
 		if b < 0 {
 			return fmt.Errorf("bingen: invalid slice length %d", b)
 		}
-		// In byte-buffer mode Remaining() upper-bounds the length to reject
-		// length-prefix DoS; in reader-mode Remaining() returns -1 ("unknown") and
-		// we trust the underlying read to fail if the stream is short.
+		// MaxContainerLength is an unconditional cap that bounds reader-mode
+		// decoding too (where Remaining() returns -1 and the upper-bound check
+		// below is skipped). Without this, a crafted payload could advertise a
+		// huge slice length and force make() to allocate before the underlying
+		// read fails.
+		if b > MaxContainerLength {
+			return fmt.Errorf("bingen: slice length %d exceeds MaxContainerLength %d", b, MaxContainerLength)
+		}
 		if rem := buff.Remaining(); rem >= 0 && b > rem {
 			return fmt.Errorf("bingen: slice length %d exceeds remaining bytes %d", b, rem)
 		}
@@ -4201,8 +4315,10 @@ func (target *Cloud) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error
 		if c < 0 {
 			return fmt.Errorf("bingen: invalid map length %d", c)
 		}
-		// Remaining() returns -1 in reader-mode; only apply the upper bound when
-		// the buffer is byte-backed and the value is meaningful.
+		// Unconditional cap to bound reader-mode allocations (see slice template).
+		if c > MaxContainerLength {
+			return fmt.Errorf("bingen: map length %d exceeds MaxContainerLength %d", c, MaxContainerLength)
+		}
 		if rem := buff.Remaining(); rem >= 0 && c > rem {
 			return fmt.Errorf("bingen: map length %d exceeds remaining bytes %d", c, rem)
 		}
@@ -4453,8 +4569,10 @@ func (target *ClusterManagement) UnmarshalBinaryWithContext(ctx *DecodingContext
 		if c < 0 {
 			return fmt.Errorf("bingen: invalid map length %d", c)
 		}
-		// Remaining() returns -1 in reader-mode; only apply the upper bound when
-		// the buffer is byte-backed and the value is meaningful.
+		// Unconditional cap to bound reader-mode allocations (see slice template).
+		if c > MaxContainerLength {
+			return fmt.Errorf("bingen: map length %d exceeds MaxContainerLength %d", c, MaxContainerLength)
+		}
 		if rem := buff.Remaining(); rem >= 0 && c > rem {
 			return fmt.Errorf("bingen: map length %d exceeds remaining bytes %d", c, rem)
 		}
@@ -4716,8 +4834,10 @@ func (target *Disk) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error)
 		if c < 0 {
 			return fmt.Errorf("bingen: invalid map length %d", c)
 		}
-		// Remaining() returns -1 in reader-mode; only apply the upper bound when
-		// the buffer is byte-backed and the value is meaningful.
+		// Unconditional cap to bound reader-mode allocations (see slice template).
+		if c > MaxContainerLength {
+			return fmt.Errorf("bingen: map length %d exceeds MaxContainerLength %d", c, MaxContainerLength)
+		}
 		if rem := buff.Remaining(); rem >= 0 && c > rem {
 			return fmt.Errorf("bingen: map length %d exceeds remaining bytes %d", c, rem)
 		}
@@ -5024,8 +5144,10 @@ func (target *LoadBalancer) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 		if d < 0 {
 			return fmt.Errorf("bingen: invalid map length %d", d)
 		}
-		// Remaining() returns -1 in reader-mode; only apply the upper bound when
-		// the buffer is byte-backed and the value is meaningful.
+		// Unconditional cap to bound reader-mode allocations (see slice template).
+		if d > MaxContainerLength {
+			return fmt.Errorf("bingen: map length %d exceeds MaxContainerLength %d", d, MaxContainerLength)
+		}
 		if rem := buff.Remaining(); rem >= 0 && d > rem {
 			return fmt.Errorf("bingen: map length %d exceeds remaining bytes %d", d, rem)
 		}
@@ -5294,8 +5416,10 @@ func (target *Network) UnmarshalBinaryWithContext(ctx *DecodingContext) (err err
 		if d < 0 {
 			return fmt.Errorf("bingen: invalid map length %d", d)
 		}
-		// Remaining() returns -1 in reader-mode; only apply the upper bound when
-		// the buffer is byte-backed and the value is meaningful.
+		// Unconditional cap to bound reader-mode allocations (see slice template).
+		if d > MaxContainerLength {
+			return fmt.Errorf("bingen: map length %d exceeds MaxContainerLength %d", d, MaxContainerLength)
+		}
 		if rem := buff.Remaining(); rem >= 0 && d > rem {
 			return fmt.Errorf("bingen: map length %d exceeds remaining bytes %d", d, rem)
 		}
@@ -5616,8 +5740,10 @@ func (target *Node) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error)
 		if d < 0 {
 			return fmt.Errorf("bingen: invalid map length %d", d)
 		}
-		// Remaining() returns -1 in reader-mode; only apply the upper bound when
-		// the buffer is byte-backed and the value is meaningful.
+		// Unconditional cap to bound reader-mode allocations (see slice template).
+		if d > MaxContainerLength {
+			return fmt.Errorf("bingen: map length %d exceeds MaxContainerLength %d", d, MaxContainerLength)
+		}
 		if rem := buff.Remaining(); rem >= 0 && d > rem {
 			return fmt.Errorf("bingen: map length %d exceeds remaining bytes %d", d, rem)
 		}
@@ -6263,8 +6389,10 @@ func (target *SharedAsset) UnmarshalBinaryWithContext(ctx *DecodingContext) (err
 		if d < 0 {
 			return fmt.Errorf("bingen: invalid map length %d", d)
 		}
-		// Remaining() returns -1 in reader-mode; only apply the upper bound when
-		// the buffer is byte-backed and the value is meaningful.
+		// Unconditional cap to bound reader-mode allocations (see slice template).
+		if d > MaxContainerLength {
+			return fmt.Errorf("bingen: map length %d exceeds MaxContainerLength %d", d, MaxContainerLength)
+		}
 		if rem := buff.Remaining(); rem >= 0 && d > rem {
 			return fmt.Errorf("bingen: map length %d exceeds remaining bytes %d", d, rem)
 		}

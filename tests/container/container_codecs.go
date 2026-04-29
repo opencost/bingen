@@ -38,6 +38,14 @@ const (
 	// NewFileStringTableReaderFrom.
 	MaxStringTableEntries = 1 << 20
 
+	// MaxContainerLength is the hard upper bound on the number of elements in
+	// a decoded slice or map, applied unconditionally in generated
+	// unmarshallers and streamers. The byte-buffer-mode path also bounds the
+	// length by the buffer's remaining bytes; this constant additionally
+	// protects reader-mode decoding (where Remaining() returns -1) from
+	// allocation DoS via a crafted oversized length prefix.
+	MaxContainerLength = 1 << 24
+
 	// ContainerExampleCodecVersion is used for any resources listed in the ContainerExample version set
 	ContainerExampleCodecVersion uint8 = 1
 )
@@ -724,9 +732,14 @@ func (target *Container) UnmarshalBinaryWithContext(ctx *DecodingContext) (err e
 		if e < 0 {
 			return fmt.Errorf("bingen: invalid slice length %d", e)
 		}
-		// In byte-buffer mode Remaining() upper-bounds the length to reject
-		// length-prefix DoS; in reader-mode Remaining() returns -1 ("unknown") and
-		// we trust the underlying read to fail if the stream is short.
+		// MaxContainerLength is an unconditional cap that bounds reader-mode
+		// decoding too (where Remaining() returns -1 and the upper-bound check
+		// below is skipped). Without this, a crafted payload could advertise a
+		// huge slice length and force make() to allocate before the underlying
+		// read fails.
+		if e > MaxContainerLength {
+			return fmt.Errorf("bingen: slice length %d exceeds MaxContainerLength %d", e, MaxContainerLength)
+		}
 		if rem := buff.Remaining(); rem >= 0 && e > rem {
 			return fmt.Errorf("bingen: slice length %d exceeds remaining bytes %d", e, rem)
 		}

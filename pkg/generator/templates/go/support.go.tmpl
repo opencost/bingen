@@ -43,6 +43,14 @@ const (
 	// attacker-controlled allocation in NewSliceStringTableReaderFrom and
 	// NewFileStringTableReaderFrom.
 	MaxStringTableEntries = 1 << 20
+
+	// MaxContainerLength is the hard upper bound on the number of elements in
+	// a decoded slice or map, applied unconditionally in generated
+	// unmarshallers and streamers. The byte-buffer-mode path also bounds the
+	// length by the buffer's remaining bytes; this constant additionally
+	// protects reader-mode decoding (where Remaining() returns -1) from
+	// allocation DoS via a crafted oversized length prefix.
+	MaxContainerLength = 1 << 24
 {{ range .VersionSets }}
 	{{ $name := ToTitle .Name -}}
 	// {{ $name }}CodecVersion is used for any resources listed in the {{ $name }} version set
