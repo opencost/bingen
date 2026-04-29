@@ -3,7 +3,9 @@ package generator
 import (
 	"embed"
 	"fmt"
+	"go/parser"
 	"io"
+	"strconv"
 	"text/template"
 
 	"github.com/opencost/bingen/pkg/generator/vars"
@@ -56,6 +58,7 @@ func init() {
 		"ToStreamParams":      ToStreamParams,
 		"ToTitle":             titleCaser.String,
 		"ToDefaultValue":      ToDefaultValue,
+		"ToRawDefault":        ToRawDefault,
 		"Map":                 MakeMap,
 	})
 
@@ -168,22 +171,44 @@ var defaultValues map[uint8]string = map[uint8]string{
 
 // ToDefaultValue provides a primitive default value mapping to string formatters for
 // quickly generating the type casted default value for a type and default.
+//
+// User-supplied default values are validated as Go literal expressions before being
+// spliced into generated source — otherwise an attacker controlling annotations could
+// inject arbitrary code at `go generate` time.
 func ToDefaultValue(typeCode uint8, value string) string {
 	if typeCode == types.TypeString {
-		return fmt.Sprintf("\"%s\"", value)
+		return strconv.Quote(value)
 	}
 
 	if typeCode == types.TypeBool {
-		if value == "" {
+		switch value {
+		case "":
 			return "false"
+		case "true", "false":
+			return value
+		default:
+			panic(fmt.Errorf("bingen: invalid bool default %q", value))
 		}
-		return value
 	}
 
 	if value == "" {
 		return fmt.Sprintf(defaultValues[typeCode], "0")
 	}
+
+	if _, err := parser.ParseExpr(value); err != nil {
+		panic(fmt.Errorf("bingen: default value %q is not a valid Go expression: %w", value, err))
+	}
 	return fmt.Sprintf(defaultValues[typeCode], value)
+}
+
+// ToRawDefault validates that a non-basic-type default value parses as a Go
+// expression and returns it. This prevents code injection through user-supplied
+// `@bingen:field[default=...]` annotations on non-basic types.
+func ToRawDefault(value string) string {
+	if _, err := parser.ParseExpr(value); err != nil {
+		panic(fmt.Errorf("bingen: default value %q is not a valid Go expression: %w", value, err))
+	}
+	return value
 }
 
 // WriteSupportTemplate writes the file header, package declaration, imports, and all supporting bingen

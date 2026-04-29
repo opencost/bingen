@@ -88,7 +88,21 @@
     {{- $loopVar := .Context.NextLoopVar }}
     {{- $innerVar := .Context.NextVar -}}
 
-    {{ $lenVar }} := buff.ReadInt() // slice len 
+    {{ $lenVar }} := buff.ReadInt() // slice len
+    if {{ $lenVar }} < 0 {
+        {{ .Context.HandleError (printf "fmt.Errorf(\"bingen: invalid slice length %%d\", %s)" $lenVar) }}
+    }
+    // MaxContainerLength is an unconditional cap that bounds reader-mode
+    // decoding too (where Remaining() returns -1 and the upper-bound check
+    // below is skipped). Without this, a crafted payload could advertise a
+    // huge slice length and force make() to allocate before the underlying
+    // read fails.
+    if {{ $lenVar }} > MaxContainerLength {
+        {{ .Context.HandleError (printf "fmt.Errorf(\"bingen: slice length %%d exceeds MaxContainerLength %%d\", %s, MaxContainerLength)" $lenVar) }}
+    }
+    if rem := buff.Remaining(); rem >= 0 && {{ $lenVar }} > rem {
+        {{ .Context.HandleError (printf "fmt.Errorf(\"bingen: slice length %%d exceeds remaining bytes %%d\", %s, rem)" $lenVar) }}
+    }
     {{ $sliceVar }} := make({{ .Type.Name }}, {{ $lenVar }})
     for {{ $loopVar }} := range {{ $lenVar }} {
         {{- $innerTarget := AsTarget $innerVar -}}
@@ -110,7 +124,17 @@
     {{- $keyVar := .Context.NextMapVar }}
     {{- $valVar := .Context.NextMapVar -}}
 
-    {{ $lenVar }} := buff.ReadInt() // map len 
+    {{ $lenVar }} := buff.ReadInt() // map len
+    if {{ $lenVar }} < 0 {
+        {{ .Context.HandleError (printf "fmt.Errorf(\"bingen: invalid map length %%d\", %s)" $lenVar) }}
+    }
+    // Unconditional cap to bound reader-mode allocations (see slice template).
+    if {{ $lenVar }} > MaxContainerLength {
+        {{ .Context.HandleError (printf "fmt.Errorf(\"bingen: map length %%d exceeds MaxContainerLength %%d\", %s, MaxContainerLength)" $lenVar) }}
+    }
+    if rem := buff.Remaining(); rem >= 0 && {{ $lenVar }} > rem {
+        {{ .Context.HandleError (printf "fmt.Errorf(\"bingen: map length %%d exceeds remaining bytes %%d\", %s, rem)" $lenVar) }}
+    }
     {{ $mapVar }} := make(map[{{ .Type.KeyType.TypeName }}]{{ .Type.ValueType.TypeName }}, {{ $lenVar }})
     for range {{ $lenVar }} {
         {{- $keyTarget := AsTarget $keyVar -}}
@@ -244,10 +268,10 @@
 
         {{/* types.BasicType */ -}}
         {{- if le .Type.Code 13 -}}
-            {{ .Target }} = {{ ToDefaultValue .Type.Code $defaultValue }} // default 
+            {{ .Target }} = {{ ToDefaultValue .Type.Code $defaultValue }} // default
         {{- else -}}
             {{- if ne $defaultValue "" -}}
-                {{ .Target }} = {{ $defaultValue }} // default 
+                {{ .Target }} = {{ ToRawDefault $defaultValue }} // default
             {{- end }}
         {{- end }}
     {{- end }}
@@ -358,29 +382,25 @@
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the {{ .Type.Name }} type
 func (target *{{ .Type.Name }}) UnmarshalBinary(data []byte) error {
-	ctx := NewDecodingContextFromBytes(data)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromBytes(data)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the {{ .Type.Name }} type
 func (target *{{ .Type.Name }}) UnmarshalBinaryFromReader(reader io.Reader) error {
-	ctx := NewDecodingContextFromReader(reader)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromReader(reader)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of

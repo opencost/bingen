@@ -13,6 +13,7 @@ package aliases
 
 import (
 	"fmt"
+	"github.com/opencost/bingen/tests/shared"
 	"io"
 	"iter"
 	"os"
@@ -20,8 +21,6 @@ import (
 	"strings"
 	"sync"
 	"unsafe"
-
-	"github.com/opencost/bingen/tests/shared"
 
 	util "github.com/opencost/bingen/pkg/util"
 )
@@ -33,6 +32,20 @@ const (
 	// BinaryTagStringTable is written and/or read prior to the existence of a string
 	// table (where each index is encoded as a string entry in the resource
 	BinaryTagStringTable string = "BGST"
+
+	// MaxStringTableEntries is the hard upper bound on the number of entries
+	// in a decoded string table, applied unconditionally to bound the
+	// attacker-controlled allocation in NewSliceStringTableReaderFrom and
+	// NewFileStringTableReaderFrom.
+	MaxStringTableEntries = 1 << 20
+
+	// MaxContainerLength is the hard upper bound on the number of elements in
+	// a decoded slice or map, applied unconditionally in generated
+	// unmarshallers and streamers. The byte-buffer-mode path also bounds the
+	// length by the buffer's remaining bytes; this constant additionally
+	// protects reader-mode decoding (where Remaining() returns -1) from
+	// allocation DoS via a crafted oversized length prefix.
+	MaxContainerLength = 1 << 24
 
 	// DefaultCodecVersion is used for any resources listed in the Default version set
 	DefaultCodecVersion uint8 = 16
@@ -186,7 +199,10 @@ func resolveType(t string) (pkg string, name string, isPtr bool) {
 //--------------------------------------------------------------------------
 
 // StreamFactoryFunc is an alias for a func that creates a BingenStream implementation.
-type StreamFactoryFunc func(io.Reader) BingenStream
+// It returns an error to allow the constructor to surface decoding-context
+// failures (e.g. an oversized or malformed string table) up to the caller
+// rather than panicking.
+type StreamFactoryFunc func(io.Reader) (BingenStream, error)
 
 // Generated streamable factory map for finding the specific new stream methods
 // by T type
@@ -205,7 +221,7 @@ func NewStreamFor[T any](reader io.Reader) (BingenStream, error) {
 		return nil, fmt.Errorf("the type: %s is not a registered bingen streamable type", typeKey.Name())
 	}
 
-	return factory(reader), nil
+	return factory(reader)
 }
 
 // BingenStream is the stream interface for all streamable types
@@ -352,9 +368,27 @@ type SliceStringTableReader struct {
 
 // NewSliceStringTableReaderFrom creates a new SliceStringTableReader instance loading
 // data directly from the buffer. The buffer's position should start at the table length.
-func NewSliceStringTableReaderFrom(buffer *util.Buffer) StringTableReader {
-	// table length
+//
+// The table length is unconditionally capped at MaxStringTableEntries to bound
+// the attacker-controlled allocation. In byte-buffer mode it is also bounded
+// by the buffer's remaining bytes; in reader-mode buffer.Remaining() returns
+// -1 and the underlying read fails naturally if the stream is short.
+func NewSliceStringTableReaderFrom(buffer *util.Buffer) (StringTableReader, error) {
 	tl := buffer.ReadInt()
+	if tl < 0 {
+		return nil, fmt.Errorf("%s: invalid string table length: %d", GeneratorPackageName, tl)
+	}
+	if tl > MaxStringTableEntries {
+		return nil, fmt.Errorf("%s: string table length %d exceeds MaxStringTableEntries %d", GeneratorPackageName, tl, MaxStringTableEntries)
+	}
+	// Each entry has at least a 4-byte uint32 length prefix, so an honest
+	// table of tl entries needs at minimum tl*4 remaining bytes. Comparing
+	// against rem (bytes) rather than rem/4 (max-entries-from-bytes) would
+	// have left a tl*4 mismatch — a payload could legitimately advertise
+	// a 4x oversize table within the remaining-byte bound.
+	if rem := buffer.Remaining(); rem >= 0 && tl > rem/4 {
+		return nil, fmt.Errorf("%s: string table length %d exceeds capacity for %d remaining bytes", GeneratorPackageName, tl, rem)
+	}
 
 	var table []string
 	if tl > 0 {
@@ -366,7 +400,7 @@ func NewSliceStringTableReaderFrom(buffer *util.Buffer) StringTableReader {
 
 	return &SliceStringTableReader{
 		table: table,
-	}
+	}, nil
 }
 
 // At returns the string entry at a specific index, or panics on out of bounds.
@@ -408,34 +442,47 @@ type FileStringTableReader struct {
 	refs []fileStringRef
 }
 
-// NewFileStringTableFromBuffer reads exactly tl length-prefixed (uint16) string payloads from buffer
-// and appends each payload to a new temp file. It does not retain full strings in memory.
-func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string) StringTableReader {
+// NewFileStringTableReaderFrom reads exactly tl length-prefixed string payloads
+// from buffer and appends each payload to a new temp file. It does not retain
+// full strings in memory.
+//
+// The table length is unconditionally capped at MaxStringTableEntries to bound
+// the attacker-controlled allocation of refs. The temp file is closed and
+// removed on any failure path.
+func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string) (StringTableReader, error) {
 	// helper func to cast a string in-place to a byte slice.
 	// NOTE: Return value is READ-ONLY. DO NOT MODIFY!
 	byteSliceFor := func(s string) []byte {
 		return unsafe.Slice(unsafe.StringData(s), len(s))
 	}
 
-	err := os.MkdirAll(dir, 0755)
-	if err != nil {
-		panic(fmt.Errorf("%s: failed to create string table directory: %w", GeneratorPackageName, err))
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return nil, fmt.Errorf("%s: failed to create string table directory: %w", GeneratorPackageName, err)
 	}
 
 	f, err := os.CreateTemp(dir, fmt.Sprintf("%s-bgst-*", GeneratorPackageName))
 	if err != nil {
-		panic(fmt.Errorf("%s: failed to create string table file: %w", GeneratorPackageName, err))
+		return nil, fmt.Errorf("%s: failed to create string table file: %w", GeneratorPackageName, err)
 	}
 
-	var writeErr error
-	defer func() {
-		if writeErr != nil {
-			_ = f.Close()
+	cleanup := func() {
+		path := f.Name()
+		_ = f.Close()
+		if path != "" {
+			_ = os.Remove(path)
 		}
-	}()
+	}
 
 	// table length
 	tl := buffer.ReadInt()
+	if tl < 0 {
+		cleanup()
+		return nil, fmt.Errorf("%s: invalid string table length: %d", GeneratorPackageName, tl)
+	}
+	if tl > MaxStringTableEntries {
+		cleanup()
+		return nil, fmt.Errorf("%s: string table length %d exceeds MaxStringTableEntries %d", GeneratorPackageName, tl, MaxStringTableEntries)
+	}
 
 	var refs []fileStringRef
 	if tl > 0 {
@@ -448,12 +495,12 @@ func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string) StringTableRe
 			if len(payload) > 0 {
 				off, err = f.Seek(0, io.SeekEnd)
 				if err != nil {
-					writeErr = fmt.Errorf("%s: failed to seek string table file: %w", GeneratorPackageName, err)
-					panic(writeErr)
+					cleanup()
+					return nil, fmt.Errorf("%s: failed to seek string table file: %w", GeneratorPackageName, err)
 				}
-				if _, err := f.Write(payload); err != nil {
-					writeErr = fmt.Errorf("%s: failed to write string table entry %d: %w", GeneratorPackageName, i, err)
-					panic(writeErr)
+				if _, werr := f.Write(payload); werr != nil {
+					cleanup()
+					return nil, fmt.Errorf("%s: failed to write string table entry %d: %w", GeneratorPackageName, i, werr)
 				}
 			}
 
@@ -467,7 +514,7 @@ func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string) StringTableRe
 	return &FileStringTableReader{
 		f:    f,
 		refs: refs,
-	}
+	}, nil
 }
 
 // At returns the string from the internal file using the reference's offset and length.
@@ -546,7 +593,7 @@ type DecodingContext struct {
 }
 
 // NewDecodingContextFromBytes creates a new DecodingContext instance using an byte slice
-func NewDecodingContextFromBytes(data []byte) *DecodingContext {
+func NewDecodingContextFromBytes(data []byte) (*DecodingContext, error) {
 	var table StringTableReader
 
 	buff := util.NewBufferFromBytes(data)
@@ -557,18 +604,22 @@ func NewDecodingContextFromBytes(data []byte) *DecodingContext {
 
 		// always use a slice string table with a byte array since the
 		// data is already in memory
-		table = NewSliceStringTableReaderFrom(buff)
+		var err error
+		table, err = NewSliceStringTableReaderFrom(buff)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &DecodingContext{
 		Buffer: buff,
 		Table:  table,
-	}
+	}, nil
 }
 
 // NewDecodingContextFromReader creates a new DecodingContext instance using an io.Reader
 // implementation
-func NewDecodingContextFromReader(reader io.Reader) *DecodingContext {
+func NewDecodingContextFromReader(reader io.Reader) (*DecodingContext, error) {
 	var table StringTableReader
 
 	buff := util.NewBufferFromReader(reader)
@@ -577,17 +628,21 @@ func NewDecodingContextFromReader(reader io.Reader) *DecodingContext {
 		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
 
 		// create correct string table implementation
+		var err error
 		if IsBingenFileBackedStringTableEnabled() {
-			table = NewFileStringTableReaderFrom(buff, BingenFileBackedStringTableDir())
+			table, err = NewFileStringTableReaderFrom(buff, BingenFileBackedStringTableDir())
 		} else {
-			table = NewSliceStringTableReaderFrom(buff)
+			table, err = NewSliceStringTableReaderFrom(buff)
+		}
+		if err != nil {
+			return nil, err
 		}
 	}
 
 	return &DecodingContext{
 		Buffer: buff,
 		Table:  table,
-	}
+	}, nil
 }
 
 // IsStringTable returns true if the table is available
@@ -673,29 +728,25 @@ func (target *Info) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the Info type
 func (target *Info) UnmarshalBinary(data []byte) error {
-	ctx := NewDecodingContextFromBytes(data)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromBytes(data)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the Info type
 func (target *Info) UnmarshalBinaryFromReader(reader io.Reader) error {
-	ctx := NewDecodingContextFromReader(reader)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromReader(reader)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
@@ -1016,29 +1067,25 @@ func (target *Parent) MarshalBinaryWithContext(ctx *EncodingContext) (err error)
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the Parent type
 func (target *Parent) UnmarshalBinary(data []byte) error {
-	ctx := NewDecodingContextFromBytes(data)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromBytes(data)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the Parent type
 func (target *Parent) UnmarshalBinaryFromReader(reader io.Reader) error {
-	ctx := NewDecodingContextFromReader(reader)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromReader(reader)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
@@ -1142,6 +1189,20 @@ func (target *Parent) UnmarshalBinaryWithContext(ctx *DecodingContext) (err erro
 	} else {
 		// --- [begin][read][slice]([]Child) ---
 		s := buff.ReadInt() // slice len
+		if s < 0 {
+			return fmt.Errorf("bingen: invalid slice length %d", s)
+		}
+		// MaxContainerLength is an unconditional cap that bounds reader-mode
+		// decoding too (where Remaining() returns -1 and the upper-bound check
+		// below is skipped). Without this, a crafted payload could advertise a
+		// huge slice length and force make() to allocate before the underlying
+		// read fails.
+		if s > MaxContainerLength {
+			return fmt.Errorf("bingen: slice length %d exceeds MaxContainerLength %d", s, MaxContainerLength)
+		}
+		if rem := buff.Remaining(); rem >= 0 && s > rem {
+			return fmt.Errorf("bingen: slice length %d exceeds remaining bytes %d", s, rem)
+		}
 		r := make([]Child, s)
 		for i := range s {
 			// --- [begin][read][alias](Child) ---
@@ -1173,6 +1234,20 @@ func (target *Parent) UnmarshalBinaryWithContext(ctx *DecodingContext) (err erro
 	} else {
 		// --- [begin][read][slice]([]ChildInfo) ---
 		cc := buff.ReadInt() // slice len
+		if cc < 0 {
+			return fmt.Errorf("bingen: invalid slice length %d", cc)
+		}
+		// MaxContainerLength is an unconditional cap that bounds reader-mode
+		// decoding too (where Remaining() returns -1 and the upper-bound check
+		// below is skipped). Without this, a crafted payload could advertise a
+		// huge slice length and force make() to allocate before the underlying
+		// read fails.
+		if cc > MaxContainerLength {
+			return fmt.Errorf("bingen: slice length %d exceeds MaxContainerLength %d", cc, MaxContainerLength)
+		}
+		if rem := buff.Remaining(); rem >= 0 && cc > rem {
+			return fmt.Errorf("bingen: slice length %d exceeds remaining bytes %d", cc, rem)
+		}
 		bb := make([]ChildInfo, cc)
 		for j := range cc {
 			// --- [begin][read][alias](ChildInfo) ---
@@ -1212,6 +1287,20 @@ func (target *Parent) UnmarshalBinaryWithContext(ctx *DecodingContext) (err erro
 	} else {
 		// --- [begin][read][slice]([]float64) ---
 		ll := buff.ReadInt() // slice len
+		if ll < 0 {
+			return fmt.Errorf("bingen: invalid slice length %d", ll)
+		}
+		// MaxContainerLength is an unconditional cap that bounds reader-mode
+		// decoding too (where Remaining() returns -1 and the upper-bound check
+		// below is skipped). Without this, a crafted payload could advertise a
+		// huge slice length and force make() to allocate before the underlying
+		// read fails.
+		if ll > MaxContainerLength {
+			return fmt.Errorf("bingen: slice length %d exceeds MaxContainerLength %d", ll, MaxContainerLength)
+		}
+		if rem := buff.Remaining(); rem >= 0 && ll > rem {
+			return fmt.Errorf("bingen: slice length %d exceeds remaining bytes %d", ll, rem)
+		}
 		hh := make([]float64, ll)
 		for ii := range ll {
 			var mm float64
@@ -1235,6 +1324,16 @@ func (target *Parent) UnmarshalBinaryWithContext(ctx *DecodingContext) (err erro
 	} else {
 		// --- [begin][read][map](map[string]int) ---
 		qq := buff.ReadInt() // map len
+		if qq < 0 {
+			return fmt.Errorf("bingen: invalid map length %d", qq)
+		}
+		// Unconditional cap to bound reader-mode allocations (see slice template).
+		if qq > MaxContainerLength {
+			return fmt.Errorf("bingen: map length %d exceeds MaxContainerLength %d", qq, MaxContainerLength)
+		}
+		if rem := buff.Remaining(); rem >= 0 && qq > rem {
+			return fmt.Errorf("bingen: map length %d exceeds remaining bytes %d", qq, rem)
+		}
 		pp := make(map[string]int, qq)
 		for range qq {
 			var v string
@@ -1269,6 +1368,20 @@ func (target *Parent) UnmarshalBinaryWithContext(ctx *DecodingContext) (err erro
 	} else {
 		// --- [begin][read][slice]([]*uint32) ---
 		yy := buff.ReadInt() // slice len
+		if yy < 0 {
+			return fmt.Errorf("bingen: invalid slice length %d", yy)
+		}
+		// MaxContainerLength is an unconditional cap that bounds reader-mode
+		// decoding too (where Remaining() returns -1 and the upper-bound check
+		// below is skipped). Without this, a crafted payload could advertise a
+		// huge slice length and force make() to allocate before the underlying
+		// read fails.
+		if yy > MaxContainerLength {
+			return fmt.Errorf("bingen: slice length %d exceeds MaxContainerLength %d", yy, MaxContainerLength)
+		}
+		if rem := buff.Remaining(); rem >= 0 && yy > rem {
+			return fmt.Errorf("bingen: slice length %d exceeds remaining bytes %d", yy, rem)
+		}
 		xx := make([]*uint32, yy)
 		for jj := range yy {
 			var aaa *uint32
@@ -1298,6 +1411,20 @@ func (target *Parent) UnmarshalBinaryWithContext(ctx *DecodingContext) (err erro
 	} else {
 		// --- [begin][read][slice]([][]map[string]*int) ---
 		eee := buff.ReadInt() // slice len
+		if eee < 0 {
+			return fmt.Errorf("bingen: invalid slice length %d", eee)
+		}
+		// MaxContainerLength is an unconditional cap that bounds reader-mode
+		// decoding too (where Remaining() returns -1 and the upper-bound check
+		// below is skipped). Without this, a crafted payload could advertise a
+		// huge slice length and force make() to allocate before the underlying
+		// read fails.
+		if eee > MaxContainerLength {
+			return fmt.Errorf("bingen: slice length %d exceeds MaxContainerLength %d", eee, MaxContainerLength)
+		}
+		if rem := buff.Remaining(); rem >= 0 && eee > rem {
+			return fmt.Errorf("bingen: slice length %d exceeds remaining bytes %d", eee, rem)
+		}
 		ddd := make([][]map[string]*int, eee)
 		for iii := range eee {
 			var fff []map[string]*int
@@ -1306,6 +1433,20 @@ func (target *Parent) UnmarshalBinaryWithContext(ctx *DecodingContext) (err erro
 			} else {
 				// --- [begin][read][slice]([]map[string]*int) ---
 				hhh := buff.ReadInt() // slice len
+				if hhh < 0 {
+					return fmt.Errorf("bingen: invalid slice length %d", hhh)
+				}
+				// MaxContainerLength is an unconditional cap that bounds reader-mode
+				// decoding too (where Remaining() returns -1 and the upper-bound check
+				// below is skipped). Without this, a crafted payload could advertise a
+				// huge slice length and force make() to allocate before the underlying
+				// read fails.
+				if hhh > MaxContainerLength {
+					return fmt.Errorf("bingen: slice length %d exceeds MaxContainerLength %d", hhh, MaxContainerLength)
+				}
+				if rem := buff.Remaining(); rem >= 0 && hhh > rem {
+					return fmt.Errorf("bingen: slice length %d exceeds remaining bytes %d", hhh, rem)
+				}
 				ggg := make([]map[string]*int, hhh)
 				for jjj := range hhh {
 					var lll map[string]*int
@@ -1314,6 +1455,16 @@ func (target *Parent) UnmarshalBinaryWithContext(ctx *DecodingContext) (err erro
 					} else {
 						// --- [begin][read][map](map[string]*int) ---
 						nnn := buff.ReadInt() // map len
+						if nnn < 0 {
+							return fmt.Errorf("bingen: invalid map length %d", nnn)
+						}
+						// Unconditional cap to bound reader-mode allocations (see slice template).
+						if nnn > MaxContainerLength {
+							return fmt.Errorf("bingen: map length %d exceeds MaxContainerLength %d", nnn, MaxContainerLength)
+						}
+						if rem := buff.Remaining(); rem >= 0 && nnn > rem {
+							return fmt.Errorf("bingen: map length %d exceeds remaining bytes %d", nnn, rem)
+						}
 						mmm := make(map[string]*int, nnn)
 						for range nnn {
 							var vv string
@@ -1391,14 +1542,19 @@ func (stream *ParentStream) Error() error {
 	return stream.err
 }
 
-// NewParentStream creates a new ParentStream, which uses the io.Reader data to stream all internal fields of an Parent instance
-func NewParentStream(reader io.Reader) BingenStream {
-	ctx := NewDecodingContextFromReader(reader)
+// NewParentStream creates a new ParentStream, which uses the io.Reader data to stream all internal fields of an Parent instance.
+// Returns an error if the decoding context cannot be initialized (for example,
+// an oversized or malformed string table header).
+func NewParentStream(reader io.Reader) (BingenStream, error) {
+	ctx, err := NewDecodingContextFromReader(reader)
+	if err != nil {
+		return nil, err
+	}
 
 	return &ParentStream{
 		ctx:    ctx,
 		reader: reader,
-	}
+	}, nil
 }
 
 // Stream returns the iterator which will stream each field of the target type.
@@ -1533,6 +1689,24 @@ func (stream *ParentStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] {
 		} else {
 			// --- [begin][read][streaming-slice]([]Child) ---
 			r := buff.ReadInt() // slice len
+			if r < 0 {
+				stream.err = fmt.Errorf("bingen: invalid slice length %d", r)
+				return
+
+			}
+			// Streaming reads almost always come from an io.Reader, where Remaining()
+			// returns -1. MaxContainerLength is the unconditional cap; the
+			// remaining-bytes check below only fires for the byte-buffer case.
+			if r > MaxContainerLength {
+				stream.err = fmt.Errorf("bingen: slice length %d exceeds MaxContainerLength %d", r, MaxContainerLength)
+				return
+
+			}
+			if rem := buff.Remaining(); rem >= 0 && r > rem {
+				stream.err = fmt.Errorf("bingen: slice length %d exceeds remaining bytes %d", r, rem)
+				return
+
+			}
 			for i := range r {
 
 				// --- [begin][read][alias](Child) ---
@@ -1565,6 +1739,24 @@ func (stream *ParentStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] {
 		// --- [begin][read][streaming-alias](OtherChildInfo) ---
 		// --- [begin][read][streaming-slice]([]ChildInfo) ---
 		y := buff.ReadInt() // slice len
+		if y < 0 {
+			stream.err = fmt.Errorf("bingen: invalid slice length %d", y)
+			return
+
+		}
+		// Streaming reads almost always come from an io.Reader, where Remaining()
+		// returns -1. MaxContainerLength is the unconditional cap; the
+		// remaining-bytes check below only fires for the byte-buffer case.
+		if y > MaxContainerLength {
+			stream.err = fmt.Errorf("bingen: slice length %d exceeds MaxContainerLength %d", y, MaxContainerLength)
+			return
+
+		}
+		if rem := buff.Remaining(); rem >= 0 && y > rem {
+			stream.err = fmt.Errorf("bingen: slice length %d exceeds remaining bytes %d", y, rem)
+			return
+
+		}
 		for j := range y {
 
 			// --- [begin][read][alias](ChildInfo) ---
@@ -1603,6 +1795,24 @@ func (stream *ParentStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] {
 		// --- [begin][read][streaming-alias](shared.FloatList) ---
 		// --- [begin][read][streaming-slice]([]float64) ---
 		dd := buff.ReadInt() // slice len
+		if dd < 0 {
+			stream.err = fmt.Errorf("bingen: invalid slice length %d", dd)
+			return
+
+		}
+		// Streaming reads almost always come from an io.Reader, where Remaining()
+		// returns -1. MaxContainerLength is the unconditional cap; the
+		// remaining-bytes check below only fires for the byte-buffer case.
+		if dd > MaxContainerLength {
+			stream.err = fmt.Errorf("bingen: slice length %d exceeds MaxContainerLength %d", dd, MaxContainerLength)
+			return
+
+		}
+		if rem := buff.Remaining(); rem >= 0 && dd > rem {
+			stream.err = fmt.Errorf("bingen: slice length %d exceeds remaining bytes %d", dd, rem)
+			return
+
+		}
 		for ii := range dd {
 
 			var ee float64
@@ -1623,6 +1833,21 @@ func (stream *ParentStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] {
 		// --- [begin][read][streaming-alias](shared.StrMap) ---
 		// --- [begin][read][streaming-map](map[string]int) ---
 		gg := buff.ReadInt() // map len
+		if gg < 0 {
+			stream.err = fmt.Errorf("bingen: invalid map length %d", gg)
+			return
+
+		}
+		if gg > MaxContainerLength {
+			stream.err = fmt.Errorf("bingen: map length %d exceeds MaxContainerLength %d", gg, MaxContainerLength)
+			return
+
+		}
+		if rem := buff.Remaining(); rem >= 0 && gg > rem {
+			stream.err = fmt.Errorf("bingen: map length %d exceeds remaining bytes %d", gg, rem)
+			return
+
+		}
 		for range gg {
 			var v string
 			var ll string
@@ -1654,6 +1879,24 @@ func (stream *ParentStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] {
 		// --- [begin][read][streaming-alias](shared.UIntPtrList) ---
 		// --- [begin][read][streaming-slice]([]*uint32) ---
 		oo := buff.ReadInt() // slice len
+		if oo < 0 {
+			stream.err = fmt.Errorf("bingen: invalid slice length %d", oo)
+			return
+
+		}
+		// Streaming reads almost always come from an io.Reader, where Remaining()
+		// returns -1. MaxContainerLength is the unconditional cap; the
+		// remaining-bytes check below only fires for the byte-buffer case.
+		if oo > MaxContainerLength {
+			stream.err = fmt.Errorf("bingen: slice length %d exceeds MaxContainerLength %d", oo, MaxContainerLength)
+			return
+
+		}
+		if rem := buff.Remaining(); rem >= 0 && oo > rem {
+			stream.err = fmt.Errorf("bingen: slice length %d exceeds remaining bytes %d", oo, rem)
+			return
+
+		}
 		for jj := range oo {
 
 			var pp *uint32
@@ -1680,6 +1923,24 @@ func (stream *ParentStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] {
 		// --- [begin][read][streaming-alias](shared.DoubleSlice) ---
 		// --- [begin][read][streaming-slice]([][]map[string]*int) ---
 		rr := buff.ReadInt() // slice len
+		if rr < 0 {
+			stream.err = fmt.Errorf("bingen: invalid slice length %d", rr)
+			return
+
+		}
+		// Streaming reads almost always come from an io.Reader, where Remaining()
+		// returns -1. MaxContainerLength is the unconditional cap; the
+		// remaining-bytes check below only fires for the byte-buffer case.
+		if rr > MaxContainerLength {
+			stream.err = fmt.Errorf("bingen: slice length %d exceeds MaxContainerLength %d", rr, MaxContainerLength)
+			return
+
+		}
+		if rem := buff.Remaining(); rem >= 0 && rr > rem {
+			stream.err = fmt.Errorf("bingen: slice length %d exceeds remaining bytes %d", rr, rem)
+			return
+
+		}
 		for iii := range rr {
 
 			var ss []map[string]*int
@@ -1688,6 +1949,26 @@ func (stream *ParentStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] {
 			} else {
 				// --- [begin][read][slice]([]map[string]*int) ---
 				uu := buff.ReadInt() // slice len
+				if uu < 0 {
+					stream.err = fmt.Errorf("bingen: invalid slice length %d", uu)
+					return
+
+				}
+				// MaxContainerLength is an unconditional cap that bounds reader-mode
+				// decoding too (where Remaining() returns -1 and the upper-bound check
+				// below is skipped). Without this, a crafted payload could advertise a
+				// huge slice length and force make() to allocate before the underlying
+				// read fails.
+				if uu > MaxContainerLength {
+					stream.err = fmt.Errorf("bingen: slice length %d exceeds MaxContainerLength %d", uu, MaxContainerLength)
+					return
+
+				}
+				if rem := buff.Remaining(); rem >= 0 && uu > rem {
+					stream.err = fmt.Errorf("bingen: slice length %d exceeds remaining bytes %d", uu, rem)
+					return
+
+				}
 				tt := make([]map[string]*int, uu)
 				for jjj := range uu {
 					var ww map[string]*int
@@ -1696,6 +1977,22 @@ func (stream *ParentStream) Stream() iter.Seq2[BingenFieldInfo, *BingenValue] {
 					} else {
 						// --- [begin][read][map](map[string]*int) ---
 						yy := buff.ReadInt() // map len
+						if yy < 0 {
+							stream.err = fmt.Errorf("bingen: invalid map length %d", yy)
+							return
+
+						}
+						// Unconditional cap to bound reader-mode allocations (see slice template).
+						if yy > MaxContainerLength {
+							stream.err = fmt.Errorf("bingen: map length %d exceeds MaxContainerLength %d", yy, MaxContainerLength)
+							return
+
+						}
+						if rem := buff.Remaining(); rem >= 0 && yy > rem {
+							stream.err = fmt.Errorf("bingen: map length %d exceeds remaining bytes %d", yy, rem)
+							return
+
+						}
 						xx := make(map[string]*int, yy)
 						for range yy {
 							var vv string

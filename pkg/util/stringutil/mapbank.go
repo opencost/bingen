@@ -46,3 +46,9 @@ func (sb *stringBank) Clear() {
 	sb.m = make(map[string]string)
 	sb.lock.Unlock()
 }
+
+// Close releases any resources held by the bank. The map-backed bank holds none.
+func (sb *stringBank) Close() error {
+	sb.Clear()
+	return nil
+}

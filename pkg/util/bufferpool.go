@@ -6,7 +6,13 @@ import (
 	"sync"
 )
 
-// bufferPool holds "tiered" []byte `sync.Pool` instances by capacity up to math.MaxUint16
+// bufferPool holds "tiered" []byte `sync.Pool` instances by capacity up to
+// math.MaxUint16. Slices are stored as plain []byte: an earlier draft used
+// *[]byte to avoid the interface boxing of a slice header inside any, but
+// because Put has no original *[]byte to recycle it constructs a new one
+// (`&full`) on every call which escapes to the heap. That allocates a slice
+// header per Put just like the boxing path would, so the indirection bought
+// nothing. See the discussion on PR #7.
 type bufferPool struct {
 	pools [17]sync.Pool
 }

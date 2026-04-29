@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"os"
 	"unsafe"
 
 	"github.com/opencost/bingen/pkg/util/stringutil"
@@ -15,14 +14,26 @@ import (
 
 var bytePool *bufferPool = newBufferPool()
 
+// MaxStringLength is the hard upper bound on a single string read by
+// Buffer.ReadString, regardless of buffer mode. With v0.2's uint32 length
+// prefix a malicious payload could otherwise request up to ~4 GiB allocation
+// per string. 64 MiB is generous for legitimate use and tightly bounds the
+// attacker's allocation budget.
+const MaxStringLength = 64 << 20
+
+// ErrStringTooLarge is recorded on Buffer.err when ReadString sees a length
+// prefix larger than MaxStringLength.
+var ErrStringTooLarge = errors.New("bingen: string length exceeds MaxStringLength")
+
 // NonPrimitiveTypeError represents an error where the user provided a non-primitive data type for reading/writing
 var NonPrimitiveTypeError error = errors.New("Type provided to read/write does not fit inside 8 bytes.")
 
 // Buffer is a utility type which implements a very basic binary protocol for
 // writing core go types.
 type Buffer struct {
-	b  *bufio.Reader
-	bw *bytes.Buffer
+	b   *bufio.Reader
+	bw  *bytes.Buffer
+	err error
 }
 
 // NewBuffer creates a new Buffer instance using LittleEndian ByteOrder.
@@ -138,16 +149,16 @@ func (b *Buffer) WriteFloat64(i float64) {
 	writeFloat64(b.bw, i)
 }
 
-// WriteString writes the string's length as a uint16 followed by the string contents.
+// WriteString writes the string's length as a uint32 followed by the string contents.
 func (b *Buffer) WriteString(i string) {
 	b.checkRO()
 	s := stringToBytes(i)
 
-	// string lengths are limited to uint16 - See ReadString()
-	if len(s) > math.MaxUint16 {
-		s = s[:math.MaxUint16]
+	// string lengths are limited to uint32 - See ReadString()
+	if uint64(len(s)) > math.MaxUint32 {
+		panic(fmt.Sprintf("bingen: string length %d exceeds uint32 max", len(s)))
 	}
-	writeUint16(b.bw, uint16(len(s)))
+	writeUint32(b.bw, uint32(len(s)))
 	b.bw.Write(s)
 }
 
@@ -159,17 +170,31 @@ func (b *Buffer) WriteBytes(bytes []byte) {
 
 // Bytes returns the unread portion of the underlying buffer storage. If the buffer was
 // created with an `io.Reader`, then the remaining unread bytes are drained into a byte
-// slice and returned.
+// slice and returned. A drain error is recorded and surfaced via Err().
 func (b *Buffer) Bytes() []byte {
 	if b.bw != nil {
 		return b.bw.Bytes()
 	}
 
 	bytes, err := io.ReadAll(b.b)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to read remaining bytes from Buffer: %s\n", err)
+	if err != nil && b.err == nil {
+		b.err = err
 	}
 	return bytes
+}
+
+// Err returns the first error encountered by an operation on the buffer that
+// previously had no way to surface a failure (notably the io.Reader-mode drain
+// in Bytes and the over-cap rejection in ReadString).
+//
+// TODO(H2): wire sticky errors through every Read*/Write* method and have the
+// generated UnmarshalBinaryWithContext epilogue check Err() before returning
+// nil. That refactor touches every generated codec consumer and is deferred
+// to its own PR; today most Read*/Write* methods remain best-effort and
+// callers performing critical decoding should rely on the recover() backstop
+// in the generated unmarshaller.
+func (b *Buffer) Err() error {
+	return b.err
 }
 
 func (b *Buffer) Peek(length int) ([]byte, error) {
@@ -198,15 +223,21 @@ func (b *Buffer) ReadBool() bool {
 	return i
 }
 
-// ReadInt reads an int value from the buffer.
+// ReadInt reads an int value from the buffer. Overflow errors from a
+// host-int-too-narrow decode (32-bit hosts reading a value above MaxInt32) are
+// recorded on Buffer.Err() so callers can surface them rather than silently
+// receiving the zero value.
 func (b *Buffer) ReadInt() int {
 	var i int
+	var err error
 	if b.bw != nil {
-		readInt(b.bw, &i)
-		return i
+		err = readInt(b.bw, &i)
+	} else {
+		err = readBuffInt(b.b, &i)
 	}
-
-	readBuffInt(b.b, &i)
+	if err != nil && b.err == nil {
+		b.err = err
+	}
 	return i
 }
 
@@ -258,15 +289,19 @@ func (b *Buffer) ReadInt64() int64 {
 	return i
 }
 
-// ReadUInt reads a uint value from the buffer.
+// ReadUInt reads a uint value from the buffer. Overflow errors are recorded on
+// Buffer.Err() (see ReadInt for the rationale).
 func (b *Buffer) ReadUInt() uint {
 	var i uint
+	var err error
 	if b.bw != nil {
-		readUint(b.bw, &i)
-		return i
+		err = readUint(b.bw, &i)
+	} else {
+		err = readBuffUint(b.b, &i)
 	}
-
-	readBuffUint(b.b, &i)
+	if err != nil && b.err == nil {
+		b.err = err
+	}
 	return i
 }
 
@@ -342,22 +377,52 @@ func (b *Buffer) ReadFloat64() float64 {
 	return i
 }
 
-// ReadString reads a uint16 value from the buffer representing the string's length,
+// ReadString reads a uint32 value from the buffer representing the string's length,
 // then uses the length to extract the exact length []byte representing the string.
+//
+// The decoded length is unconditionally capped at MaxStringLength to prevent
+// a crafted payload from triggering huge allocations. In byte-buffer mode the
+// length is also bounded by the unread byte count. In reader-mode the
+// underlying read will fail naturally if the stream is short; the bufio.Reader's
+// incidental buffer size is not a reliable bound and would falsely reject
+// valid large strings. On any rejection or read failure an empty string is
+// returned and the corresponding error is recorded on Buffer.Err() so callers
+// can distinguish corruption from a legitimate empty string.
 func (b *Buffer) ReadString() string {
-	var l uint16
+	var l uint32
 	if b.bw != nil {
-		readUint16(b.bw, &l)
+		readUint32(b.bw, &l)
+		if uint64(l) > MaxStringLength {
+			if b.err == nil {
+				b.err = fmt.Errorf("%w: %d > %d", ErrStringTooLarge, l, MaxStringLength)
+			}
+			return ""
+		}
+		if uint64(l) > uint64(b.bw.Len()) {
+			if b.err == nil {
+				b.err = fmt.Errorf("%w: ReadString wants %d bytes, only %d remaining", io.ErrUnexpectedEOF, l, b.bw.Len())
+			}
+			return ""
+		}
 		return bytesToString(b.bw.Next(int(l)))
 	}
 
-	readBuffUint16(b.b, &l)
+	readBuffUint32(b.b, &l)
+	if uint64(l) > MaxStringLength {
+		if b.err == nil {
+			b.err = fmt.Errorf("%w: %d > %d", ErrStringTooLarge, l, MaxStringLength)
+		}
+		return ""
+	}
 
 	bytes := bytePool.Get(int(l))
 	defer bytePool.Put(bytes)
 
 	_, err := readBuffFull(b.b, bytes)
 	if err != nil {
+		if b.err == nil {
+			b.err = fmt.Errorf("ReadString: %w", err)
+		}
 		return ""
 	}
 
@@ -365,18 +430,51 @@ func (b *Buffer) ReadString() string {
 }
 
 // ReadBytes reads the specified length from the buffer and returns the byte slice.
+// On rejection (length larger than available bytes) or read failure, nil/zero
+// is returned and the error is recorded on Buffer.Err().
 func (b *Buffer) ReadBytes(length int) []byte {
+	if length <= 0 {
+		return nil
+	}
+
 	if b.bw != nil {
+		if length > b.bw.Len() {
+			if b.err == nil {
+				b.err = fmt.Errorf("%w: ReadBytes wants %d bytes, only %d remaining", io.ErrUnexpectedEOF, length, b.bw.Len())
+			}
+			return nil
+		}
 		return b.bw.Next(length)
 	}
 
 	bytes := make([]byte, length)
 	_, err := readBuffFull(b.b, bytes)
 	if err != nil {
-		return bytes
+		if b.err == nil {
+			b.err = fmt.Errorf("ReadBytes: %w", err)
+		}
+		// Return nil rather than a partially-filled slice — the docstring
+		// guarantees nil-on-failure and callers should not consume corrupted
+		// or short data.
+		return nil
 	}
 
 	return bytes
+}
+
+// Remaining returns the number of unread bytes available to a byte-buffer
+// (read/write) Buffer. For reader-mode buffers, where the true remaining
+// payload is unknown without performing more I/O, Remaining returns -1.
+//
+// Callers using Remaining as a sanity bound for a length prefix should treat
+// a negative return value as "unknown" and skip the upper-bound check —
+// otherwise legitimate large payloads streamed through an io.Reader would be
+// rejected based on the bufio.Reader's incidental buffering size.
+func (b *Buffer) Remaining() int {
+	if b.bw != nil {
+		return b.bw.Len()
+	}
+	return -1
 }
 
 // bytesAsString converts a []byte into a string in place. Note that you should use this helper

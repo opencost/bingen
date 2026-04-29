@@ -32,6 +32,20 @@ const (
 	// table (where each index is encoded as a string entry in the resource
 	BinaryTagStringTable string = "BGST"
 
+	// MaxStringTableEntries is the hard upper bound on the number of entries
+	// in a decoded string table, applied unconditionally to bound the
+	// attacker-controlled allocation in NewSliceStringTableReaderFrom and
+	// NewFileStringTableReaderFrom.
+	MaxStringTableEntries = 1 << 20
+
+	// MaxContainerLength is the hard upper bound on the number of elements in
+	// a decoded slice or map, applied unconditionally in generated
+	// unmarshallers and streamers. The byte-buffer-mode path also bounds the
+	// length by the buffer's remaining bytes; this constant additionally
+	// protects reader-mode decoding (where Remaining() returns -1) from
+	// allocation DoS via a crafted oversized length prefix.
+	MaxContainerLength = 1 << 24
+
 	// ContainerExampleCodecVersion is used for any resources listed in the ContainerExample version set
 	ContainerExampleCodecVersion uint8 = 1
 )
@@ -276,9 +290,27 @@ type SliceStringTableReader struct {
 
 // NewSliceStringTableReaderFrom creates a new SliceStringTableReader instance loading
 // data directly from the buffer. The buffer's position should start at the table length.
-func NewSliceStringTableReaderFrom(buffer *util.Buffer) StringTableReader {
-	// table length
+//
+// The table length is unconditionally capped at MaxStringTableEntries to bound
+// the attacker-controlled allocation. In byte-buffer mode it is also bounded
+// by the buffer's remaining bytes; in reader-mode buffer.Remaining() returns
+// -1 and the underlying read fails naturally if the stream is short.
+func NewSliceStringTableReaderFrom(buffer *util.Buffer) (StringTableReader, error) {
 	tl := buffer.ReadInt()
+	if tl < 0 {
+		return nil, fmt.Errorf("%s: invalid string table length: %d", GeneratorPackageName, tl)
+	}
+	if tl > MaxStringTableEntries {
+		return nil, fmt.Errorf("%s: string table length %d exceeds MaxStringTableEntries %d", GeneratorPackageName, tl, MaxStringTableEntries)
+	}
+	// Each entry has at least a 4-byte uint32 length prefix, so an honest
+	// table of tl entries needs at minimum tl*4 remaining bytes. Comparing
+	// against rem (bytes) rather than rem/4 (max-entries-from-bytes) would
+	// have left a tl*4 mismatch — a payload could legitimately advertise
+	// a 4x oversize table within the remaining-byte bound.
+	if rem := buffer.Remaining(); rem >= 0 && tl > rem/4 {
+		return nil, fmt.Errorf("%s: string table length %d exceeds capacity for %d remaining bytes", GeneratorPackageName, tl, rem)
+	}
 
 	var table []string
 	if tl > 0 {
@@ -290,7 +322,7 @@ func NewSliceStringTableReaderFrom(buffer *util.Buffer) StringTableReader {
 
 	return &SliceStringTableReader{
 		table: table,
-	}
+	}, nil
 }
 
 // At returns the string entry at a specific index, or panics on out of bounds.
@@ -332,34 +364,47 @@ type FileStringTableReader struct {
 	refs []fileStringRef
 }
 
-// NewFileStringTableFromBuffer reads exactly tl length-prefixed (uint16) string payloads from buffer
-// and appends each payload to a new temp file. It does not retain full strings in memory.
-func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string) StringTableReader {
+// NewFileStringTableReaderFrom reads exactly tl length-prefixed string payloads
+// from buffer and appends each payload to a new temp file. It does not retain
+// full strings in memory.
+//
+// The table length is unconditionally capped at MaxStringTableEntries to bound
+// the attacker-controlled allocation of refs. The temp file is closed and
+// removed on any failure path.
+func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string) (StringTableReader, error) {
 	// helper func to cast a string in-place to a byte slice.
 	// NOTE: Return value is READ-ONLY. DO NOT MODIFY!
 	byteSliceFor := func(s string) []byte {
 		return unsafe.Slice(unsafe.StringData(s), len(s))
 	}
 
-	err := os.MkdirAll(dir, 0755)
-	if err != nil {
-		panic(fmt.Errorf("%s: failed to create string table directory: %w", GeneratorPackageName, err))
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return nil, fmt.Errorf("%s: failed to create string table directory: %w", GeneratorPackageName, err)
 	}
 
 	f, err := os.CreateTemp(dir, fmt.Sprintf("%s-bgst-*", GeneratorPackageName))
 	if err != nil {
-		panic(fmt.Errorf("%s: failed to create string table file: %w", GeneratorPackageName, err))
+		return nil, fmt.Errorf("%s: failed to create string table file: %w", GeneratorPackageName, err)
 	}
 
-	var writeErr error
-	defer func() {
-		if writeErr != nil {
-			_ = f.Close()
+	cleanup := func() {
+		path := f.Name()
+		_ = f.Close()
+		if path != "" {
+			_ = os.Remove(path)
 		}
-	}()
+	}
 
 	// table length
 	tl := buffer.ReadInt()
+	if tl < 0 {
+		cleanup()
+		return nil, fmt.Errorf("%s: invalid string table length: %d", GeneratorPackageName, tl)
+	}
+	if tl > MaxStringTableEntries {
+		cleanup()
+		return nil, fmt.Errorf("%s: string table length %d exceeds MaxStringTableEntries %d", GeneratorPackageName, tl, MaxStringTableEntries)
+	}
 
 	var refs []fileStringRef
 	if tl > 0 {
@@ -372,12 +417,12 @@ func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string) StringTableRe
 			if len(payload) > 0 {
 				off, err = f.Seek(0, io.SeekEnd)
 				if err != nil {
-					writeErr = fmt.Errorf("%s: failed to seek string table file: %w", GeneratorPackageName, err)
-					panic(writeErr)
+					cleanup()
+					return nil, fmt.Errorf("%s: failed to seek string table file: %w", GeneratorPackageName, err)
 				}
-				if _, err := f.Write(payload); err != nil {
-					writeErr = fmt.Errorf("%s: failed to write string table entry %d: %w", GeneratorPackageName, i, err)
-					panic(writeErr)
+				if _, werr := f.Write(payload); werr != nil {
+					cleanup()
+					return nil, fmt.Errorf("%s: failed to write string table entry %d: %w", GeneratorPackageName, i, werr)
 				}
 			}
 
@@ -391,7 +436,7 @@ func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string) StringTableRe
 	return &FileStringTableReader{
 		f:    f,
 		refs: refs,
-	}
+	}, nil
 }
 
 // At returns the string from the internal file using the reference's offset and length.
@@ -470,7 +515,7 @@ type DecodingContext struct {
 }
 
 // NewDecodingContextFromBytes creates a new DecodingContext instance using an byte slice
-func NewDecodingContextFromBytes(data []byte) *DecodingContext {
+func NewDecodingContextFromBytes(data []byte) (*DecodingContext, error) {
 	var table StringTableReader
 
 	buff := util.NewBufferFromBytes(data)
@@ -481,18 +526,22 @@ func NewDecodingContextFromBytes(data []byte) *DecodingContext {
 
 		// always use a slice string table with a byte array since the
 		// data is already in memory
-		table = NewSliceStringTableReaderFrom(buff)
+		var err error
+		table, err = NewSliceStringTableReaderFrom(buff)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &DecodingContext{
 		Buffer: buff,
 		Table:  table,
-	}
+	}, nil
 }
 
 // NewDecodingContextFromReader creates a new DecodingContext instance using an io.Reader
 // implementation
-func NewDecodingContextFromReader(reader io.Reader) *DecodingContext {
+func NewDecodingContextFromReader(reader io.Reader) (*DecodingContext, error) {
 	var table StringTableReader
 
 	buff := util.NewBufferFromReader(reader)
@@ -501,17 +550,21 @@ func NewDecodingContextFromReader(reader io.Reader) *DecodingContext {
 		buff.ReadBytes(len(BinaryTagStringTable)) // strip tag length
 
 		// create correct string table implementation
+		var err error
 		if IsBingenFileBackedStringTableEnabled() {
-			table = NewFileStringTableReaderFrom(buff, BingenFileBackedStringTableDir())
+			table, err = NewFileStringTableReaderFrom(buff, BingenFileBackedStringTableDir())
 		} else {
-			table = NewSliceStringTableReaderFrom(buff)
+			table, err = NewSliceStringTableReaderFrom(buff)
+		}
+		if err != nil {
+			return nil, err
 		}
 	}
 
 	return &DecodingContext{
 		Buffer: buff,
 		Table:  table,
-	}
+	}, nil
 }
 
 // IsStringTable returns true if the table is available
@@ -617,29 +670,25 @@ func (target *Container) MarshalBinaryWithContext(ctx *EncodingContext) (err err
 // UnmarshalBinary uses the data passed byte array to set all the internal properties of
 // the Container type
 func (target *Container) UnmarshalBinary(data []byte) error {
-	ctx := NewDecodingContextFromBytes(data)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromBytes(data)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
 // the Container type
 func (target *Container) UnmarshalBinaryFromReader(reader io.Reader) error {
-	ctx := NewDecodingContextFromReader(reader)
-	defer ctx.Close()
-
-	err := target.UnmarshalBinaryWithContext(ctx)
+	ctx, err := NewDecodingContextFromReader(reader)
 	if err != nil {
 		return err
 	}
+	defer ctx.Close()
 
-	return nil
+	return target.UnmarshalBinaryWithContext(ctx)
 }
 
 // UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
@@ -680,6 +729,20 @@ func (target *Container) UnmarshalBinaryWithContext(ctx *DecodingContext) (err e
 	} else {
 		// --- [begin][read][slice]([]string) ---
 		e := buff.ReadInt() // slice len
+		if e < 0 {
+			return fmt.Errorf("bingen: invalid slice length %d", e)
+		}
+		// MaxContainerLength is an unconditional cap that bounds reader-mode
+		// decoding too (where Remaining() returns -1 and the upper-bound check
+		// below is skipped). Without this, a crafted payload could advertise a
+		// huge slice length and force make() to allocate before the underlying
+		// read fails.
+		if e > MaxContainerLength {
+			return fmt.Errorf("bingen: slice length %d exceeds MaxContainerLength %d", e, MaxContainerLength)
+		}
+		if rem := buff.Remaining(); rem >= 0 && e > rem {
+			return fmt.Errorf("bingen: slice length %d exceeds remaining bytes %d", e, rem)
+		}
 		d := make([]string, e)
 		for i := range e {
 			var f string

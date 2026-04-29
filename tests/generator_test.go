@@ -87,8 +87,7 @@ func runGenerator(dir string, pkg string) error {
 		return err
 	}
 
-	generator.Generate(dir, pkg, BinGenUtil, tc)
-	return nil
+	return generator.Generate(dir, pkg, BinGenUtil, tc)
 }
 
 func TestGenerateAliasBinCodecs(t *testing.T) {

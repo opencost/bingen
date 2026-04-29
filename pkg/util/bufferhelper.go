@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"io"
 	"math"
 )
@@ -68,7 +69,7 @@ func readUint16(r *bytes.Buffer, data *uint16) error {
 
 func readInt(r *bytes.Buffer, data *int) error {
 	order := binary.LittleEndian
-	var b [4]byte
+	var b [8]byte
 
 	bs := b[:]
 	_, err := readFull(r, bs)
@@ -76,7 +77,11 @@ func readInt(r *bytes.Buffer, data *int) error {
 		return err
 	}
 
-	*data = int(int32(order.Uint32(bs)))
+	v := int64(order.Uint64(bs))
+	if int64(int(v)) != v {
+		return fmt.Errorf("bingen: int value %d overflows host int width", v)
+	}
+	*data = int(v)
 	return nil
 }
 
@@ -96,7 +101,7 @@ func readInt32(r *bytes.Buffer, data *int32) error {
 
 func readUint(r *bytes.Buffer, data *uint) error {
 	order := binary.LittleEndian
-	var b [4]byte
+	var b [8]byte
 
 	bs := b[:]
 	_, err := readFull(r, bs)
@@ -104,7 +109,11 @@ func readUint(r *bytes.Buffer, data *uint) error {
 		return err
 	}
 
-	*data = uint(order.Uint32(bs))
+	v := order.Uint64(bs)
+	if uint64(uint(v)) != v {
+		return fmt.Errorf("bingen: uint value %d overflows host uint width", v)
+	}
+	*data = uint(v)
 	return nil
 }
 
@@ -238,7 +247,7 @@ func readBuffUint16(r *bufio.Reader, data *uint16) error {
 
 func readBuffInt(r *bufio.Reader, data *int) error {
 	order := binary.LittleEndian
-	var b [4]byte
+	var b [8]byte
 
 	bs := b[:]
 	_, err := readBuffFull(r, bs)
@@ -246,7 +255,11 @@ func readBuffInt(r *bufio.Reader, data *int) error {
 		return err
 	}
 
-	*data = int(int32(order.Uint32(bs)))
+	v := int64(order.Uint64(bs))
+	if int64(int(v)) != v {
+		return fmt.Errorf("bingen: int value %d overflows host int width", v)
+	}
+	*data = int(v)
 	return nil
 }
 
@@ -266,7 +279,7 @@ func readBuffInt32(r *bufio.Reader, data *int32) error {
 
 func readBuffUint(r *bufio.Reader, data *uint) error {
 	order := binary.LittleEndian
-	var b [4]byte
+	var b [8]byte
 
 	bs := b[:]
 	_, err := readBuffFull(r, bs)
@@ -274,7 +287,11 @@ func readBuffUint(r *bufio.Reader, data *uint) error {
 		return err
 	}
 
-	*data = uint(order.Uint32(bs))
+	v := order.Uint64(bs)
+	if uint64(uint(v)) != v {
+		return fmt.Errorf("bingen: uint value %d overflows host uint width", v)
+	}
+	*data = uint(v)
 	return nil
 }
 
@@ -439,19 +456,19 @@ func writeUint32(w *bytes.Buffer, data uint32) error {
 }
 
 func writeInt(w *bytes.Buffer, data int) error {
-	var b [4]byte
+	var b [8]byte
 	bs := b[:]
 
-	binary.LittleEndian.PutUint32(bs, uint32(int32(data)))
+	binary.LittleEndian.PutUint64(bs, uint64(int64(data)))
 	_, err := w.Write(bs)
 	return err
 }
 
 func writeUint(w *bytes.Buffer, data uint) error {
-	var b [4]byte
+	var b [8]byte
 	bs := b[:]
 
-	binary.LittleEndian.PutUint32(bs, uint32(data))
+	binary.LittleEndian.PutUint64(bs, uint64(data))
 	_, err := w.Write(bs)
 	return err
 }

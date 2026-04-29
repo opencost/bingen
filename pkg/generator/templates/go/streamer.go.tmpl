@@ -39,7 +39,19 @@
     {{- $loopVar := .Context.NextLoopVar }}
     {{- $innerVar := .Context.NextVar -}}
 
-    {{ $lenVar }} := buff.ReadInt() // slice len 
+    {{ $lenVar }} := buff.ReadInt() // slice len
+    if {{ $lenVar }} < 0 {
+        {{ .Context.HandleError (printf "fmt.Errorf(\"bingen: invalid slice length %%d\", %s)" $lenVar) }}
+    }
+    // Streaming reads almost always come from an io.Reader, where Remaining()
+    // returns -1. MaxContainerLength is the unconditional cap; the
+    // remaining-bytes check below only fires for the byte-buffer case.
+    if {{ $lenVar }} > MaxContainerLength {
+        {{ .Context.HandleError (printf "fmt.Errorf(\"bingen: slice length %%d exceeds MaxContainerLength %%d\", %s, MaxContainerLength)" $lenVar) }}
+    }
+    if rem := buff.Remaining(); rem >= 0 && {{ $lenVar }} > rem {
+        {{ .Context.HandleError (printf "fmt.Errorf(\"bingen: slice length %%d exceeds remaining bytes %%d\", %s, rem)" $lenVar) }}
+    }
     for {{ $loopVar }} := range {{ $lenVar }} {
         {{- $target := (AsTarget $innerVar) }}
         {{ template "readType" (ToReadParams .Context .Type.InnerType $target true) }}
@@ -59,7 +71,16 @@
     {{- $keyVar := .Context.NextMapVar }}
     {{- $valVar := .Context.NextMapVar -}}
 
-    {{ $lenVar }} := buff.ReadInt() // map len 
+    {{ $lenVar }} := buff.ReadInt() // map len
+    if {{ $lenVar }} < 0 {
+        {{ .Context.HandleError (printf "fmt.Errorf(\"bingen: invalid map length %%d\", %s)" $lenVar) }}
+    }
+    if {{ $lenVar }} > MaxContainerLength {
+        {{ .Context.HandleError (printf "fmt.Errorf(\"bingen: map length %%d exceeds MaxContainerLength %%d\", %s, MaxContainerLength)" $lenVar) }}
+    }
+    if rem := buff.Remaining(); rem >= 0 && {{ $lenVar }} > rem {
+        {{ .Context.HandleError (printf "fmt.Errorf(\"bingen: map length %%d exceeds remaining bytes %%d\", %s, rem)" $lenVar) }}
+    }
     for range {{ $lenVar }} {
         {{- $keyTarget := (AsTarget $keyVar) }}
         {{- $valTarget := (AsTarget $valVar) -}}
@@ -118,12 +139,12 @@
         {{/* types.BasicType */ -}}
         {{- if le .Type.Code 13 -}}
             {{- $targetVar := .Context.NextVar -}}
-            var {{ $targetVar }} {{ .Type.TypeName }} = {{ ToDefaultValue .Type.Code $defaultValue }} // default 
+            var {{ $targetVar }} {{ .Type.TypeName }} = {{ ToDefaultValue .Type.Code $defaultValue }} // default
             {{ template "streamYieldSingle" (Map "Value" $targetVar) }}
         {{- else -}}
             {{- if ne $defaultValue "" -}}
                 {{- $targetVar := .Context.NextVar -}}
-                var {{ $targetVar }} {{ .Type.TypeName }} = {{ $defaultValue }} // default 
+                var {{ $targetVar }} {{ .Type.TypeName }} = {{ ToRawDefault $defaultValue }} // default
                 {{ template "streamYieldSingle" (Map "Value" $targetVar) }}
             {{- end }}
         {{- end }}
@@ -264,14 +285,19 @@ func (stream *{{ .Type.Name }}Stream) Error() error {
 	return stream.err
 }
 
-// New{{ .Type.Name }}Stream creates a new {{ .Type.Name }}Stream, which uses the io.Reader data to stream all internal fields of an {{ .Type.Name }} instance
-func New{{ .Type.Name }}Stream(reader io.Reader) BingenStream {
-	ctx := NewDecodingContextFromReader(reader)
+// New{{ .Type.Name }}Stream creates a new {{ .Type.Name }}Stream, which uses the io.Reader data to stream all internal fields of an {{ .Type.Name }} instance.
+// Returns an error if the decoding context cannot be initialized (for example,
+// an oversized or malformed string table header).
+func New{{ .Type.Name }}Stream(reader io.Reader) (BingenStream, error) {
+	ctx, err := NewDecodingContextFromReader(reader)
+	if err != nil {
+		return nil, err
+	}
 
 	return &{{ .Type.Name }}Stream{
 		ctx: ctx,
 		reader: reader,
-	}
+	}, nil
 }
 
 // Stream returns the iterator which will stream each field of the target type.

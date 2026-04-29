@@ -7,6 +7,7 @@ import (
 )
 
 type lruEntry struct {
+	key   string
 	value string
 	used  int64
 }
@@ -97,11 +98,15 @@ func evict(bank *lruStringBank, capacity int) {
 
 	oldest := nOldest(arr, len(bank.m)-capacity)
 	for _, old := range oldest {
-		delete(bank.m, old.value)
+		// Evict by the actual map key. The previous version used `old.value`,
+		// which only matched on the LoadOrStoreFunc path (where value == key)
+		// and silently no-op'd for LoadOrStore when key != value.
+		delete(bank.m, old.key)
 	}
 }
 
-func (sb *lruStringBank) Stop() {
+// Close stops the background eviction goroutine. Subsequent calls are no-ops.
+func (sb *lruStringBank) Close() error {
 	sb.lock.Lock()
 	defer sb.lock.Unlock()
 
@@ -109,6 +114,7 @@ func (sb *lruStringBank) Stop() {
 		close(sb.stop)
 		sb.stop = nil
 	}
+	return nil
 }
 
 func (sb *lruStringBank) LoadOrStore(key, value string) (string, bool) {
@@ -121,6 +127,7 @@ func (sb *lruStringBank) LoadOrStore(key, value string) (string, bool) {
 	}
 
 	sb.m[key] = &lruEntry{
+		key:   key,
 		value: value,
 		used:  time.Now().UnixMilli(),
 	}
@@ -143,6 +150,7 @@ func (sb *lruStringBank) LoadOrStoreFunc(key string, f func() string) (string, b
 	// create the key and value using the func (the key could be deallocated later)
 	value := f()
 	sb.m[value] = &lruEntry{
+		key:   value,
 		value: value,
 		used:  time.Now().UnixMilli(),
 	}

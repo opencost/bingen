@@ -226,6 +226,10 @@ func (ac *annotationCollector) Collect(file *ast.File) error {
 						ac.current.annotations[a.Command] = map[string]*Annotation{}
 					}
 
+					if _, exists := ac.current.annotations[a.Command][a.Target]; exists {
+						return fmt.Errorf("duplicate @bingen:%s annotation for target %q in set %q", a.Command, a.Target, ac.current.name)
+					}
+
 					ac.current.annotations[a.Command][a.Target] = a
 				}
 			}
@@ -301,17 +305,31 @@ func nameVersionFor(a *Annotation) (string, uint8, error) {
 func LoadAnnotations(packages map[string]*ast.Package, defaultVersion uint8) (*BingenAnnotated, error) {
 	ac := newAnnotationsCollector()
 
-	for _, v := range packages {
-		for _, file := range v.Files {
-			err := ac.Collect(file)
+	// Iterate packages and the files within each in sorted order so that the
+	// resulting collected output is deterministic regardless of map iteration
+	// order. Without this, repeated runs over the same input could produce
+	// byte-different generated source.
+	pkgKeys := slices.Collect(maps.Keys(packages))
+	slices.Sort(pkgKeys)
+	for _, pk := range pkgKeys {
+		v := packages[pk]
+
+		fileKeys := slices.Collect(maps.Keys(v.Files))
+		slices.Sort(fileKeys)
+		for _, fk := range fileKeys {
+			err := ac.Collect(v.Files[fk])
 			if err != nil {
 				return nil, err
 			}
 		}
 	}
 
-	sets := []VersionSet{}
-	for _, v := range ac.sets {
+	setKeys := slices.Collect(maps.Keys(ac.sets))
+	slices.Sort(setKeys)
+
+	sets := make([]VersionSet, 0, len(setKeys))
+	for _, k := range setKeys {
+		v := ac.sets[k]
 		if v.name == AnnotationDefaultSetName {
 			v.version = defaultVersion
 		}
