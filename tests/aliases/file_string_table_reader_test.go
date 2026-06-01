@@ -2,7 +2,6 @@ package aliases
 
 import (
 	"os"
-	"sync/atomic"
 	"testing"
 )
 
@@ -19,17 +18,13 @@ func TestFileStringTableReaderAt_UsesMemoCache(t *testing.T) {
 	}
 
 	// Pre-populate cache (simulating what NewFileStringTableReaderFrom does)
-	s := "hello"
 	reader := &FileStringTableReader{
 		f: tmp,
 		refs: []fileStringRef{
 			{off: 0, length: 5},
 		},
-		memo:         make([]atomic.Pointer[string], 1),
-		memoMaxBytes: 16,
+		memo: []string{"hello"},
 	}
-	reader.memo[0].Store(&s)
-	reader.memoBytes.Store(5)
 	defer reader.Close()
 
 	if got := reader.At(0); got != "hello" {
@@ -50,31 +45,24 @@ func TestFileStringTableReader_PreloadCache(t *testing.T) {
 	// Test that the cache is immutable after creation (no dynamic insertion)
 	s1 := "aaaa"
 	s2 := "bbbb"
-	s3 := "cccc"
 	reader := &FileStringTableReader{
 		refs: []fileStringRef{
 			{length: len(s1)},
 			{length: len(s2)},
-			{length: len(s3)},
+			{length: 0}, // s3 not cached
 		},
-		memo:         make([]atomic.Pointer[string], 3),
-		memoMaxBytes: 16,
+		memo: []string{s1, s2, ""}, // Pre-populated cache
 	}
-
-	// Pre-populate cache (simulating what NewFileStringTableReaderFrom does)
-	reader.memo[0].Store(&s1)
-	reader.memo[1].Store(&s2)
-	reader.memoBytes.Store(int64(len(s1) + len(s2)))
 
 	// Verify cached entries are accessible
-	if got := reader.memo[0].Load(); got == nil || *got != s1 {
+	if got := reader.memo[0]; got != s1 {
 		t.Fatalf("expected cached s1, got %v", got)
 	}
-	if got := reader.memo[1].Load(); got == nil || *got != s2 {
+	if got := reader.memo[1]; got != s2 {
 		t.Fatalf("expected cached s2, got %v", got)
 	}
-	// s3 should not be cached (would exceed limit)
-	if got := reader.memo[2].Load(); got != nil {
-		t.Fatalf("expected s3 to not be cached, got %q", *got)
+	// s3 should not be cached (empty string)
+	if got := reader.memo[2]; got != "" {
+		t.Fatalf("expected s3 to not be cached, got %q", got)
 	}
 }

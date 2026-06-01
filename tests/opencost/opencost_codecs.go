@@ -19,7 +19,6 @@ import (
 	"reflect"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 	"unsafe"
 
@@ -34,14 +33,14 @@ const (
 	// table (where each index is encoded as a string entry in the resource
 	BinaryTagStringTable string = "BGST"
 
-	// AllocationCodecVersion is used for any resources listed in the Allocation version set
-	AllocationCodecVersion uint8 = 16
-
 	// DefaultCodecVersion is used for any resources listed in the Default version set
 	DefaultCodecVersion uint8 = 16
 
 	// AssetsCodecVersion is used for any resources listed in the Assets version set
 	AssetsCodecVersion uint8 = 16
+
+	// AllocationCodecVersion is used for any resources listed in the Allocation version set
+	AllocationCodecVersion uint8 = 16
 )
 
 //--------------------------------------------------------------------------
@@ -442,11 +441,9 @@ type fileStringRef struct {
 // usage. This implementation is often pair with streaming readers for high throughput with
 // reduced memory usage.
 type FileStringTableReader struct {
-	f            *os.File
-	refs         []fileStringRef
-	memo         []atomic.Pointer[string]
-	memoBytes    atomic.Int64
-	memoMaxBytes int64
+	f    *os.File
+	refs []fileStringRef
+	memo []string
 }
 
 // NewFileStringTableFromBuffer reads exactly tl length-prefixed (uint16) string payloads from buffer
@@ -506,7 +503,7 @@ func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string) StringTableRe
 	}
 
 	memoMaxBytes := BingenFileBackedStringTableMemoMaxBytes()
-	memo := make([]atomic.Pointer[string], len(refs))
+	memo := make([]string, len(refs))
 
 	// Pre-load cache with strings up to memoMaxBytes, respecting string boundaries
 	if memoMaxBytes > 0 && len(refs) > 0 {
@@ -528,29 +525,17 @@ func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string) StringTableRe
 				}
 
 				// Cast the allocated bytes to a string in-place
-				s := unsafe.String(unsafe.SliceData(b), len(b))
-				toStore := new(string)
-				*toStore = s
-				memo[i].Store(toStore)
+				str := unsafe.String(unsafe.SliceData(b), len(b))
+				memo[i] = str
 				cumulativeSize += int64(ref.length) + 16
 			}
 		}
-
-		reader := &FileStringTableReader{
-			f:            f,
-			refs:         refs,
-			memo:         memo,
-			memoMaxBytes: memoMaxBytes,
-		}
-		reader.memoBytes.Store(cumulativeSize)
-		return reader
 	}
 
 	return &FileStringTableReader{
-		f:            f,
-		refs:         refs,
-		memo:         memo,
-		memoMaxBytes: memoMaxBytes,
+		f:    f,
+		refs: refs,
+		memo: memo,
 	}
 }
 
@@ -569,8 +554,8 @@ func (fstr *FileStringTableReader) At(index int) string {
 	}
 
 	// Check cache first
-	if cached := fstr.memo[index].Load(); cached != nil {
-		return *cached
+	if fstr.memo[index] != "" {
+		return fstr.memo[index]
 	}
 
 	// Cache miss - read from file
@@ -603,11 +588,7 @@ func (fstr *FileStringTableReader) Close() error {
 	err := fstr.f.Close()
 	fstr.f = nil
 	fstr.refs = nil
-	for i := range fstr.memo {
-		fstr.memo[i].Store(nil)
-	}
 	fstr.memo = nil
-	fstr.memoBytes.Store(0)
 
 	if path != "" {
 		_ = os.Remove(path)
