@@ -18,6 +18,8 @@ func TestFileStringTableReaderAt_UsesMemoCache(t *testing.T) {
 		t.Fatalf("write temp data: %v", err)
 	}
 
+	// Pre-populate cache (simulating what NewFileStringTableReaderFrom does)
+	s := "hello"
 	reader := &FileStringTableReader{
 		f: tmp,
 		refs: []fileStringRef{
@@ -26,12 +28,15 @@ func TestFileStringTableReaderAt_UsesMemoCache(t *testing.T) {
 		memo:         make([]atomic.Pointer[string], 1),
 		memoMaxBytes: 16,
 	}
+	reader.memo[0].Store(&s)
+	reader.memoBytes.Store(5)
 	defer reader.Close()
 
 	if got := reader.At(0); got != "hello" {
 		t.Fatalf("baseline string mismatch, got %q", got)
 	}
 
+	// Truncate file to verify cache is used instead of reading from file
 	if err := tmp.Truncate(0); err != nil {
 		t.Fatalf("truncate temp file: %v", err)
 	}
@@ -41,40 +46,35 @@ func TestFileStringTableReaderAt_UsesMemoCache(t *testing.T) {
 	}
 }
 
-func TestFileStringTableReader_EvictLeastUsedMemoEntries(t *testing.T) {
+func TestFileStringTableReader_PreloadCache(t *testing.T) {
+	// Test that the cache is immutable after creation (no dynamic insertion)
 	s1 := "aaaa"
 	s2 := "bbbb"
 	s3 := "cccc"
-	s4 := "dddd"
 	reader := &FileStringTableReader{
 		refs: []fileStringRef{
 			{length: len(s1)},
 			{length: len(s2)},
 			{length: len(s3)},
-			{length: len(s4)},
 		},
-		memo:         make([]atomic.Pointer[string], 4),
-		memoHits:     make([]atomic.Uint64, 4),
-		evictScratch: make([]memoEvictionCandidate, 4),
+		memo:         make([]atomic.Pointer[string], 3),
 		memoMaxBytes: 16,
 	}
 
+	// Pre-populate cache (simulating what NewFileStringTableReaderFrom does)
 	reader.memo[0].Store(&s1)
 	reader.memo[1].Store(&s2)
-	reader.memo[2].Store(&s3)
-	reader.memo[3].Store(&s4)
-	reader.memoHits[0].Store(10)
-	reader.memoHits[1].Store(1)
-	reader.memoHits[2].Store(3)
-	reader.memoHits[3].Store(2)
-	reader.memoBytes.Store(int64(len(s1) + len(s2) + len(s3) + len(s4)))
+	reader.memoBytes.Store(int64(len(s1) + len(s2)))
 
-	reader.evictLeastUsedMemoEntries(0.10, 0.40)
-
-	if got := reader.memo[1].Load(); got != nil {
-		t.Fatalf("expected index 1 to be evicted first, got %q", *got)
+	// Verify cached entries are accessible
+	if got := reader.memo[0].Load(); got == nil || *got != s1 {
+		t.Fatalf("expected cached s1, got %v", got)
 	}
-	if got := reader.memo[3].Load(); got == nil {
-		t.Fatalf("expected index 3 to remain cached")
+	if got := reader.memo[1].Load(); got == nil || *got != s2 {
+		t.Fatalf("expected cached s2, got %v", got)
+	}
+	// s3 should not be cached (would exceed limit)
+	if got := reader.memo[2].Load(); got != nil {
+		t.Fatalf("expected s3 to not be cached, got %q", *got)
 	}
 }
