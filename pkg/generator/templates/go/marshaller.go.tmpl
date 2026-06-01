@@ -273,28 +273,45 @@
 // MarshalBinary serializes the internal properties of this {{ .Type.Name }} instance
 // into a byte array
 func (target *{{ .Type.Name }}) MarshalBinary() (data []byte, err error) {
-	ctx := &EncodingContext{
-		Buffer: util.NewBuffer(),
 {{- if .Context.IsStringTable }}
-		Table: NewStringTableWriter(),
+	ctx := NewEncodingContext(NewIndexedStringTableWriter())
 {{- else }}
-		Table: nil,
+	ctx := NewEncodingContext(nil)
 {{- end }}
-	}
 
 	e := target.MarshalBinaryWithContext(ctx)
 	if e != nil {
 		return nil, e
 	}
 
-	encBytes := ctx.Buffer.Bytes() 
-{{- if .Context.IsStringTable }}
-	sTableBytes := ctx.Table.ToBytes()
-	merged := appendBytes(sTableBytes, encBytes)
-	return merged, nil 
+	return ctx.ToBytes(), nil
+}
+
+// MarshalBinary serializes the internal properties of this {{ .Type.Name }} instance
+// into an io.Writer. 
+func (target *{{ .Type.Name }}) MarshalBinaryTo(writer io.Writer) error {
+	buff := util.NewBufferFromWriter(writer)
+	defer buff.Flush()
+
+{{ if .Context.IsStringTable }}
+	// run a pre-pass to collect all strings into the string table and discard all writes to the main 
+	// buffer. Then, we write the string table, sorted by number of repeated uses (descending), to the 
+	// main buffer, and use the resulting table as part of the context for the main pass.
+	prepass := NewPrepassStringTableWriter()
+	prepassCtx := NewEncodingContextFromWriter(io.Discard, prepass)
+
+	e := target.MarshalBinaryWithContext(prepassCtx)
+	if e != nil {
+		return e
+	}
+
+	tableWriter := prepass.WriteSortedTo(buff)
+	ctx := NewEncodingContextFromBuffer(buff, tableWriter)
 {{- else }}
-	return encBytes, nil
+	ctx := NewEncodingContextFromBuffer(buff, nil)
 {{- end }}
+
+	return target.MarshalBinaryWithContext(ctx)
 }
 
 // MarshalBinaryWithContext serializes the internal properties of this {{ .Type.Name }} instance
