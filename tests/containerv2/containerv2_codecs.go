@@ -421,7 +421,7 @@ type FileStringTableReader struct {
 
 // NewFileStringTableFromBuffer reads exactly tl length-prefixed (uint16) string payloads from buffer
 // and appends each payload to a new temp file. It does not retain full strings in memory.
-func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string) StringTableReader {
+func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string, memoMaxBytes int64) StringTableReader {
 	// helper func to cast a string in-place to a byte slice.
 	// NOTE: Return value is READ-ONLY. DO NOT MODIFY!
 	byteSliceFor := func(s string) []byte {
@@ -475,11 +475,11 @@ func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string) StringTableRe
 		}
 	}
 
-	memoMaxBytes := BingenFileBackedStringTableMemoMaxBytes()
-	memo := make([]string, len(refs))
+	var memo []string
 
 	// Pre-load cache with strings up to memoMaxBytes, respecting string boundaries
 	if memoMaxBytes > 0 && len(refs) > 0 {
+		memo = make([]string, len(refs))
 		var cumulativeSize int64
 		for i, ref := range refs {
 			// Check if adding this string would exceed the limit
@@ -626,7 +626,7 @@ func NewDecodingContextFromReader(reader io.Reader) *DecodingContext {
 
 		// create correct string table implementation
 		if IsBingenFileBackedStringTableEnabled() {
-			table = NewFileStringTableReaderFrom(buff, BingenFileBackedStringTableDir())
+			table = NewFileStringTableReaderFrom(buff, BingenFileBackedStringTableDir(), BingenFileBackedStringTableMemoMaxBytes())
 		} else {
 			table = NewSliceStringTableReaderFrom(buff)
 		}
