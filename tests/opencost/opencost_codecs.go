@@ -554,7 +554,7 @@ func (fstr *FileStringTableReader) At(index int) string {
 	}
 
 	// Check cache first
-	if fstr.memo[index] != "" {
+	if fstr.memo != nil && len(fstr.memo) > index && fstr.memo[index] != "" {
 		return fstr.memo[index]
 	}
 
@@ -2629,7 +2629,6 @@ func (target *Any) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) 
 	if buff.ReadUInt8() == uint8(0) {
 		target.properties = nil
 	} else {
-
 		// --- [begin][read][struct](AssetProperties) ---
 		m := new(AssetProperties)
 		buff.ReadInt() // [compatibility, unused]
@@ -4032,7 +4031,6 @@ func (target *Cloud) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error
 	if buff.ReadUInt8() == uint8(0) {
 		target.properties = nil
 	} else {
-
 		// --- [begin][read][struct](AssetProperties) ---
 		m := new(AssetProperties)
 		buff.ReadInt() // [compatibility, unused]
@@ -4280,7 +4278,6 @@ func (target *ClusterManagement) UnmarshalBinaryWithContext(ctx *DecodingContext
 	if buff.ReadUInt8() == uint8(0) {
 		target.properties = nil
 	} else {
-
 		// --- [begin][read][struct](AssetProperties) ---
 		m := new(AssetProperties)
 		buff.ReadInt() // [compatibility, unused]
@@ -4539,7 +4536,6 @@ func (target *Disk) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error)
 	if buff.ReadUInt8() == uint8(0) {
 		target.properties = nil
 	} else {
-
 		// --- [begin][read][struct](AssetProperties) ---
 		m := new(AssetProperties)
 		buff.ReadInt() // [compatibility, unused]
@@ -4786,7 +4782,6 @@ func (target *LoadBalancer) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 	if buff.ReadUInt8() == uint8(0) {
 		target.properties = nil
 	} else {
-
 		// --- [begin][read][struct](AssetProperties) ---
 		a := new(AssetProperties)
 		buff.ReadInt() // [compatibility, unused]
@@ -5052,7 +5047,6 @@ func (target *Network) UnmarshalBinaryWithContext(ctx *DecodingContext) (err err
 	if buff.ReadUInt8() == uint8(0) {
 		target.properties = nil
 	} else {
-
 		// --- [begin][read][struct](AssetProperties) ---
 		a := new(AssetProperties)
 		buff.ReadInt() // [compatibility, unused]
@@ -5370,7 +5364,6 @@ func (target *Node) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error)
 	if buff.ReadUInt8() == uint8(0) {
 		target.properties = nil
 	} else {
-
 		// --- [begin][read][struct](AssetProperties) ---
 		a := new(AssetProperties)
 		buff.ReadInt() // [compatibility, unused]
@@ -6025,7 +6018,6 @@ func (target *SharedAsset) UnmarshalBinaryWithContext(ctx *DecodingContext) (err
 	if buff.ReadUInt8() == uint8(0) {
 		target.properties = nil
 	} else {
-
 		// --- [begin][read][struct](AssetProperties) ---
 		a := new(AssetProperties)
 		buff.ReadInt() // [compatibility, unused]

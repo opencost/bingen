@@ -3,6 +3,8 @@ package aliases
 import (
 	"os"
 	"testing"
+
+	util "github.com/opencost/bingen/pkg/util"
 )
 
 func TestFileStringTableReaderAt_UsesMemoCache(t *testing.T) {
@@ -64,5 +66,67 @@ func TestFileStringTableReader_PreloadCache(t *testing.T) {
 	// s3 should not be cached (empty string)
 	if got := reader.memo[2]; got != "" {
 		t.Fatalf("expected s3 to not be cached, got %q", got)
+	}
+}
+
+func TestFileStringTableReader_ZeroMaxBytes(t *testing.T) {
+	// Test that FileStringTableReader works correctly when memoMaxBytes = 0 (no caching)
+	// This is an edge case that should not cause nil panics
+
+	// Create a buffer and write test strings
+	buf := util.NewBuffer()
+	testStrings := []string{
+		"string1",
+		"string2",
+		"string3",
+		"string4",
+		"string5",
+	}
+
+	// Write the string table to buffer
+	// First write the table length
+	buf.WriteInt(len(testStrings))
+	// Then write each string
+	for _, s := range testStrings {
+		buf.WriteString(s)
+	}
+
+	// Create reader with memoMaxBytes = 0 (no caching)
+	reader := NewFileStringTableReaderFrom(buf, t.TempDir(), 0)
+	if reader == nil {
+		t.Fatal("NewFileStringTableReaderFrom returned nil")
+	}
+	defer reader.Close()
+
+	// Cast to concrete type to inspect internal state
+	fileReader, ok := reader.(*FileStringTableReader)
+	if !ok {
+		t.Fatal("Expected *FileStringTableReader type")
+	}
+
+	// Verify memo is nil or empty when memoMaxBytes = 0
+	if fileReader.memo != nil && len(fileReader.memo) > 0 {
+		t.Errorf("Expected memo to be nil or empty with memoMaxBytes=0, got length %d", len(fileReader.memo))
+	}
+
+	// Verify no panic occurs and strings are correctly retrieved from file
+	for i, expected := range testStrings {
+		actual := reader.At(i)
+		if actual != expected {
+			t.Errorf("At(%d) = %q, want %q", i, actual, expected)
+		}
+	}
+
+	// Verify Len() works correctly
+	if reader.Len() != len(testStrings) {
+		t.Errorf("Len() = %d, want %d", reader.Len(), len(testStrings))
+	}
+
+	// Test accessing the same string multiple times (should read from file each time)
+	for i := 0; i < 3; i++ {
+		actual := reader.At(0)
+		if actual != testStrings[0] {
+			t.Errorf("At(0) iteration %d = %q, want %q", i, actual, testStrings[0])
+		}
 	}
 }

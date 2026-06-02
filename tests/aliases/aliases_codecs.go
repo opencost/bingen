@@ -529,7 +529,7 @@ func (fstr *FileStringTableReader) At(index int) string {
 	}
 
 	// Check cache first
-	if fstr.memo[index] != "" {
+	if fstr.memo != nil && len(fstr.memo) > index && fstr.memo[index] != "" {
 		return fstr.memo[index]
 	}
 
