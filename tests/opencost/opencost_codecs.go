@@ -28,6 +28,7 @@ import (
 const (
 	// GeneratorPackageName is the package the generator is targetting
 	GeneratorPackageName string = "opencost"
+	StringHeaderSize            = int64(unsafe.Sizeof(""))
 
 	// BinaryTagStringTable is written and/or read prior to the existence of a string
 	// table (where each index is encoded as a string entry in the resource
@@ -510,7 +511,7 @@ func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string, memoMaxBytes 
 		var cumulativeSize int64
 		for i, ref := range refs {
 			// Check if adding this string would exceed the limit
-			if cumulativeSize+int64(ref.length)+16 > memoMaxBytes {
+			if cumulativeSize+int64(ref.length)+StringHeaderSize > memoMaxBytes {
 				// Would exceed limit, stop here
 				break
 			}
@@ -527,7 +528,7 @@ func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string, memoMaxBytes 
 				// Cast the allocated bytes to a string in-place
 				str := unsafe.String(unsafe.SliceData(b), len(b))
 				memo[i] = str
-				cumulativeSize += int64(ref.length) + 16
+				cumulativeSize += int64(ref.length) + StringHeaderSize
 			}
 		}
 	}
@@ -2629,6 +2630,7 @@ func (target *Any) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) 
 	if buff.ReadUInt8() == uint8(0) {
 		target.properties = nil
 	} else {
+
 		// --- [begin][read][struct](AssetProperties) ---
 		m := new(AssetProperties)
 		buff.ReadInt() // [compatibility, unused]
@@ -4031,6 +4033,7 @@ func (target *Cloud) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error
 	if buff.ReadUInt8() == uint8(0) {
 		target.properties = nil
 	} else {
+
 		// --- [begin][read][struct](AssetProperties) ---
 		m := new(AssetProperties)
 		buff.ReadInt() // [compatibility, unused]
@@ -4278,6 +4281,7 @@ func (target *ClusterManagement) UnmarshalBinaryWithContext(ctx *DecodingContext
 	if buff.ReadUInt8() == uint8(0) {
 		target.properties = nil
 	} else {
+
 		// --- [begin][read][struct](AssetProperties) ---
 		m := new(AssetProperties)
 		buff.ReadInt() // [compatibility, unused]
@@ -4536,6 +4540,7 @@ func (target *Disk) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error)
 	if buff.ReadUInt8() == uint8(0) {
 		target.properties = nil
 	} else {
+
 		// --- [begin][read][struct](AssetProperties) ---
 		m := new(AssetProperties)
 		buff.ReadInt() // [compatibility, unused]
@@ -4782,6 +4787,7 @@ func (target *LoadBalancer) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 	if buff.ReadUInt8() == uint8(0) {
 		target.properties = nil
 	} else {
+
 		// --- [begin][read][struct](AssetProperties) ---
 		a := new(AssetProperties)
 		buff.ReadInt() // [compatibility, unused]
@@ -5047,6 +5053,7 @@ func (target *Network) UnmarshalBinaryWithContext(ctx *DecodingContext) (err err
 	if buff.ReadUInt8() == uint8(0) {
 		target.properties = nil
 	} else {
+
 		// --- [begin][read][struct](AssetProperties) ---
 		a := new(AssetProperties)
 		buff.ReadInt() // [compatibility, unused]
@@ -5364,6 +5371,7 @@ func (target *Node) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error)
 	if buff.ReadUInt8() == uint8(0) {
 		target.properties = nil
 	} else {
+
 		// --- [begin][read][struct](AssetProperties) ---
 		a := new(AssetProperties)
 		buff.ReadInt() // [compatibility, unused]
@@ -6018,6 +6026,7 @@ func (target *SharedAsset) UnmarshalBinaryWithContext(ctx *DecodingContext) (err
 	if buff.ReadUInt8() == uint8(0) {
 		target.properties = nil
 	} else {
+
 		// --- [begin][read][struct](AssetProperties) ---
 		a := new(AssetProperties)
 		buff.ReadInt() // [compatibility, unused]

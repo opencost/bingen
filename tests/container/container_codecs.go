@@ -27,6 +27,7 @@ import (
 const (
 	// GeneratorPackageName is the package the generator is targetting
 	GeneratorPackageName string = "container"
+	StringHeaderSize            = int64(unsafe.Sizeof(""))
 
 	// BinaryTagStringTable is written and/or read prior to the existence of a string
 	// table (where each index is encoded as a string entry in the resource
@@ -410,7 +411,7 @@ func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string, memoMaxBytes 
 		var cumulativeSize int64
 		for i, ref := range refs {
 			// Check if adding this string would exceed the limit
-			if cumulativeSize+int64(ref.length)+16 > memoMaxBytes {
+			if cumulativeSize+int64(ref.length)+StringHeaderSize > memoMaxBytes {
 				// Would exceed limit, stop here
 				break
 			}
@@ -427,7 +428,7 @@ func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string, memoMaxBytes 
 				// Cast the allocated bytes to a string in-place
 				str := unsafe.String(unsafe.SliceData(b), len(b))
 				memo[i] = str
-				cumulativeSize += int64(ref.length) + 16
+				cumulativeSize += int64(ref.length) + StringHeaderSize
 			}
 		}
 	}
