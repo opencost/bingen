@@ -12,9 +12,11 @@
 package container
 
 import (
+	"cmp"
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"sync"
 	"unsafe"
 
@@ -128,21 +130,6 @@ func isReaderBinaryTag(buff *util.Buffer, tag string) bool {
 	return string(data[:len(tag)]) == tag
 }
 
-// appendBytes combines a and b into a new byte array
-func appendBytes(a []byte, b []byte) []byte {
-	al := len(a)
-	bl := len(b)
-	tl := al + bl
-
-	// allocate a new byte array for the combined
-	// use native copy for speedy byte copying
-	result := make([]byte, tl)
-	copy(result, a)
-	copy(result[al:], b)
-
-	return result
-}
-
 // typeToString determines the basic properties of the type, the qualifier, package path, and
 // type name, and returns the qualified type
 func typeToString(f interface{}) string {
@@ -182,33 +169,34 @@ func resolveType(t string) (pkg string, name string, isPtr bool) {
 //  String Table Writer
 //--------------------------------------------------------------------------
 
-// StringTableWriter maps strings to specific indices for encoding
-type StringTableWriter struct {
-	l       sync.Mutex
+// StringTableWriter is the interface used to write the string table for encoding.
+type StringTableWriter interface {
+	// AddOrGet adds a string to the string table and returns the new index or
+	// an existing index.
+	AddOrGet(s string) int
+
+	// WriteTo will write the StringTable data (with the header) to the provided
+	// Buffer starting a the current write position
+	WriteTo(b *util.Buffer)
+}
+
+// IndexedStringTableWriter maps strings to specific indices for encoding
+type IndexedStringTableWriter struct {
 	indices map[string]int
 	next    int
 }
 
-// NewStringTableWriter Creates a new StringTableWriter instance with provided contents
-func NewStringTableWriter(contents ...string) *StringTableWriter {
-	st := &StringTableWriter{
-		indices: make(map[string]int, len(contents)),
-		next:    len(contents),
+// NewIndexedStringTableWriter Creates a new IndexedStringTableWriter instance.
+func NewIndexedStringTableWriter() *IndexedStringTableWriter {
+	return &IndexedStringTableWriter{
+		indices: make(map[string]int),
+		next:    0,
 	}
-
-	for i, entry := range contents {
-		st.indices[entry] = i
-	}
-
-	return st
 }
 
 // AddOrGet atomically retrieves a string entry's index if it exist. Otherwise, it will
 // add the entry and return the index.
-func (st *StringTableWriter) AddOrGet(s string) int {
-	st.l.Lock()
-	defer st.l.Unlock()
-
+func (st *IndexedStringTableWriter) AddOrGet(s string) int {
 	if ind, ok := st.indices[s]; ok {
 		return ind
 	}
@@ -221,10 +209,7 @@ func (st *StringTableWriter) AddOrGet(s string) int {
 }
 
 // ToSlice Converts the contents to a string array for encoding.
-func (st *StringTableWriter) ToSlice() []string {
-	st.l.Lock()
-	defer st.l.Unlock()
-
+func (st *IndexedStringTableWriter) ToSlice() []string {
 	if st.next == 0 {
 		return []string{}
 	}
@@ -237,18 +222,96 @@ func (st *StringTableWriter) ToSlice() []string {
 }
 
 // ToBytes Converts the contents to a binary encoded representation
-func (st *StringTableWriter) ToBytes() []byte {
+func (st *IndexedStringTableWriter) ToBytes() []byte {
 	buff := util.NewBuffer()
-	buff.WriteBytes([]byte(BinaryTagStringTable)) // bingen table header
+	st.WriteTo(buff)
+	return buff.Bytes()
+}
 
+// WriteTo will write the StringTable data (with the header) to the provided
+// Buffer starting a the current write position
+func (st *IndexedStringTableWriter) WriteTo(buff *util.Buffer) {
+	// bingen string table header
+	buff.WriteBytes([]byte(BinaryTagStringTable))
+
+	// get an ordered string slice to encode
 	strs := st.ToSlice()
 
 	buff.WriteInt(len(strs)) // table length
 	for _, s := range strs {
 		buff.WriteString(s)
 	}
+}
 
-	return buff.Bytes()
+type indexed struct {
+	s     string
+	count uint64
+	index int
+}
+
+func newIndexed(s string, index int) *indexed {
+	return &indexed{
+		s:     s,
+		count: 1,
+		index: index,
+	}
+}
+
+// PrepassStringTableWriter maps strings to specific indices for encoding, sorted by the total
+// number of times they're accessed
+type PrepassStringTableWriter struct {
+	prepass map[string]*indexed
+	next    int
+}
+
+// NewPrepassStringTableWriter creates a new PrepassStringTableWriter instance.
+func NewPrepassStringTableWriter() *PrepassStringTableWriter {
+	return &PrepassStringTableWriter{
+		prepass: make(map[string]*indexed),
+	}
+}
+
+// AddOrGet atomically retrieves a string entry's index if it exist. Otherwise, it will
+// add the entry and return the index.
+func (st *PrepassStringTableWriter) AddOrGet(s string) int {
+	if ind, ok := st.prepass[s]; ok {
+		ind.count += 1
+		return ind.index
+	}
+
+	current := st.next
+	st.next++
+
+	st.prepass[s] = newIndexed(s, current)
+	return current
+}
+
+// WriteSortedTo sorts the string table by the number of accesses, writes the table in that
+// order, then returns a new StringTableWriter implementation that can be used for the new
+// sorted order index lookups.
+func (st *PrepassStringTableWriter) WriteSortedTo(buff *util.Buffer) StringTableWriter {
+	sl := make([]*indexed, st.next)
+	for _, ind := range st.prepass {
+		sl[ind.index] = ind
+	}
+
+	slices.SortFunc(sl, func(a *indexed, b *indexed) int {
+		return -cmp.Compare(a.count, b.count)
+	})
+
+	sti := NewIndexedStringTableWriter()
+	for _, ind := range sl {
+		sti.AddOrGet(ind.s)
+	}
+
+	sti.WriteTo(buff)
+	return sti
+}
+
+// WriteTo will write the StringTable data (with the header) to the provided
+// Buffer starting a the current write position
+func (st *PrepassStringTableWriter) WriteTo(buff *util.Buffer) {
+	panic("Prepass StringTableWriter cannot write directly")
 }
 
 //--------------------------------------------------------------------------
@@ -454,7 +517,49 @@ func (fstr *FileStringTableReader) Close() error {
 // and table data
 type EncodingContext struct {
 	Buffer *util.Buffer
-	Table  *StringTableWriter
+	Table  StringTableWriter
+}
+
+// NewEncodingContext creates a new EncodingContext instance that will create a new []byte buffer
+// for writing, and return the context
+func NewEncodingContext(tableWriter StringTableWriter) *EncodingContext {
+	return &EncodingContext{
+		Buffer: util.NewBuffer(),
+		Table:  tableWriter,
+	}
+}
+
+// NewEncodingContextFromWriter creates a new EncodingContext instance that will create a new Buffer
+// from the provided io.Writer and StringTableWriter.
+func NewEncodingContextFromWriter(writer io.Writer, tableWriter StringTableWriter) *EncodingContext {
+	return &EncodingContext{
+		Buffer: util.NewBufferFromWriter(writer),
+		Table:  tableWriter,
+	}
+}
+
+// NewEncodingContextFromBuffer creates a new EncodingContext instance that will leverage an existing
+// Buffer and StringTableWriter.
+func NewEncodingContextFromBuffer(buffer *util.Buffer, tableWriter StringTableWriter) *EncodingContext {
+	return &EncodingContext{
+		Buffer: buffer,
+		Table:  tableWriter,
+	}
+}
+
+// ToBytes returns the encoded string table bytes (if applicable) combined with the encoded buffer bytes. If
+// a string table is being used, the string table bytes will be written first to ensure correct ordering for
+// decoding.
+func (ec *EncodingContext) ToBytes() []byte {
+	encBytes := ec.Buffer.Bytes()
+	if ec.Table != nil {
+		buff := util.NewBuffer()
+		ec.Table.WriteTo(buff)
+		buff.WriteBytes(encBytes)
+		return buff.Bytes()
+	}
+
+	return encBytes
 }
 
 // IsStringTable returns true if the table is available
@@ -549,18 +654,25 @@ type BinDecoder interface {
 // MarshalBinary serializes the internal properties of this Container instance
 // into a byte array
 func (target *Container) MarshalBinary() (data []byte, err error) {
-	ctx := &EncodingContext{
-		Buffer: util.NewBuffer(),
-		Table:  nil,
-	}
+	ctx := NewEncodingContext(nil)
 
 	e := target.MarshalBinaryWithContext(ctx)
 	if e != nil {
 		return nil, e
 	}
 
-	encBytes := ctx.Buffer.Bytes()
-	return encBytes, nil
+	return ctx.ToBytes(), nil
+}
+
+// MarshalBinary serializes the internal properties of this Container instance
+// into an io.Writer.
+func (target *Container) MarshalBinaryTo(writer io.Writer) error {
+	buff := util.NewBufferFromWriter(writer)
+	defer buff.Flush()
+
+	ctx := NewEncodingContextFromBuffer(buff, nil)
+
+	return target.MarshalBinaryWithContext(ctx)
 }
 
 // MarshalBinaryWithContext serializes the internal properties of this Container instance

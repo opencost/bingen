@@ -130,7 +130,7 @@ func ToStreamParams(context GeneratorContext, t types.GenType) StreamParams {
 	}
 }
 
-// MakeMap is a helper function made available to the teplating engine to create dynamic parameters to pass
+// MakeMap is a helper function made available to the templating engine to create dynamic parameters to pass
 // to various templates. ie: (Map "Context" .Context "Type" .Type.InnerType)
 //
 // Templates accept a single object called a "pipeline". From that object, all properties can be accessed via
