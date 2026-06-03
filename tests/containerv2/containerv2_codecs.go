@@ -29,6 +29,7 @@ import (
 const (
 	// GeneratorPackageName is the package the generator is targetting
 	GeneratorPackageName string = "containerv2"
+	StringHeaderSize            = int64(unsafe.Sizeof(""))
 
 	// BinaryTagStringTable is written and/or read prior to the existence of a string
 	// table (where each index is encoded as a string entry in the resource
@@ -56,14 +57,19 @@ type BingenConfiguration struct {
 
 	// FileBackedStringTableDir is the directory to write the string table files for reading.
 	FileBackedStringTableDir string
+
+	// FileBackedStringTableMemoMaxBytes limits in-memory memoization for file-backed table lookups.
+	// 0 disables memoization.
+	FileBackedStringTableMemoMaxBytes int64
 }
 
 // DefaultBingenConfiguration creates the default implementation of the bingen configuration
 // and returns it.
 func DefaultBingenConfiguration() *BingenConfiguration {
 	return &BingenConfiguration{
-		FileBackedStringTableEnabled: false,
-		FileBackedStringTableDir:     os.TempDir(),
+		FileBackedStringTableEnabled:      false,
+		FileBackedStringTableDir:          os.TempDir(),
+		FileBackedStringTableMemoMaxBytes: 0,
 	}
 }
 
@@ -93,6 +99,14 @@ func BingenFileBackedStringTableDir() string {
 	defer bingenConfigLock.RUnlock()
 
 	return bingenConfig.FileBackedStringTableDir
+}
+
+// BingenFileBackedStringTableMemoMaxBytes returns the maximum bytes used for file-backed memo cache.
+func BingenFileBackedStringTableMemoMaxBytes() int64 {
+	bingenConfigLock.RLock()
+	defer bingenConfigLock.RUnlock()
+
+	return bingenConfig.FileBackedStringTableMemoMaxBytes
 }
 
 //--------------------------------------------------------------------------
@@ -466,11 +480,12 @@ type fileStringRef struct {
 type FileStringTableReader struct {
 	f    *os.File
 	refs []fileStringRef
+	memo []string
 }
 
 // NewFileStringTableFromBuffer reads exactly tl length-prefixed (uint16) string payloads from buffer
 // and appends each payload to a new temp file. It does not retain full strings in memory.
-func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string) StringTableReader {
+func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string, memoMaxBytes int64) StringTableReader {
 	// helper func to cast a string in-place to a byte slice.
 	// NOTE: Return value is READ-ONLY. DO NOT MODIFY!
 	byteSliceFor := func(s string) []byte {
@@ -524,9 +539,40 @@ func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string) StringTableRe
 		}
 	}
 
+	var memo []string
+
+	// Pre-load cache with strings up to memoMaxBytes, respecting string boundaries
+	if memoMaxBytes > 0 && len(refs) > 0 {
+		memo = make([]string, len(refs))
+		var cumulativeSize int64
+		for i, ref := range refs {
+			// Check if adding this string would exceed the limit
+			if cumulativeSize+int64(ref.length)+StringHeaderSize > memoMaxBytes {
+				// Would exceed limit, stop here
+				break
+			}
+
+			// Read string from file and cache it
+			if ref.length > 0 {
+				b := make([]byte, ref.length)
+				_, err := f.ReadAt(b, ref.off)
+				if err != nil {
+					// If we can't read, skip this entry but continue
+					continue
+				}
+
+				// Cast the allocated bytes to a string in-place
+				str := unsafe.String(unsafe.SliceData(b), len(b))
+				memo[i] = str
+				cumulativeSize += int64(ref.length) + StringHeaderSize
+			}
+		}
+	}
+
 	return &FileStringTableReader{
 		f:    f,
 		refs: refs,
+		memo: memo,
 	}
 }
 
@@ -544,14 +590,19 @@ func (fstr *FileStringTableReader) At(index int) string {
 		return ""
 	}
 
+	// Check cache first
+	if fstr.memo != nil && len(fstr.memo) > index && fstr.memo[index] != "" {
+		return fstr.memo[index]
+	}
+
+	// Cache miss - read from file
 	b := make([]byte, ref.length)
 	_, err := fstr.f.ReadAt(b, ref.off)
 	if err != nil {
 		return ""
 	}
 
-	// cast the allocated bytes to a string in-place, as we
-	// were the ones that allocated the bytes
+	// Cast the allocated bytes to a string in-place, as we were the ones that allocated the bytes
 	return unsafe.String(unsafe.SliceData(b), len(b))
 }
 
@@ -574,6 +625,7 @@ func (fstr *FileStringTableReader) Close() error {
 	err := fstr.f.Close()
 	fstr.f = nil
 	fstr.refs = nil
+	fstr.memo = nil
 
 	if path != "" {
 		_ = os.Remove(path)
@@ -680,7 +732,7 @@ func NewDecodingContextFromReader(reader io.Reader) *DecodingContext {
 
 		// create correct string table implementation
 		if IsBingenFileBackedStringTableEnabled() {
-			table = NewFileStringTableReaderFrom(buff, BingenFileBackedStringTableDir())
+			table = NewFileStringTableReaderFrom(buff, BingenFileBackedStringTableDir(), BingenFileBackedStringTableMemoMaxBytes())
 		} else {
 			table = NewSliceStringTableReaderFrom(buff)
 		}
