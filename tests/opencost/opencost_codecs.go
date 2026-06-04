@@ -308,8 +308,7 @@ func NewIndexedStringTableWriter() *IndexedStringTableWriter {
 	}
 }
 
-// AddOrGet atomically retrieves a string entry's index if it exist. Otherwise, it will
-// add the entry and return the index.
+// AddOrGet retrieves a string entry's index if it exists. Otherwise, it adds the entry and returns the new index.
 func (st *IndexedStringTableWriter) AddOrGet(s string) int {
 	if ind, ok := st.indices[s]; ok {
 		return ind
@@ -385,8 +384,7 @@ func NewPrepassStringTableWriter() *PrepassStringTableWriter {
 	}
 }
 
-// AddOrGet atomically retrieves a string entry's index if it exist. Otherwise, it will
-// add the entry and return the index.
+// AddOrGet retrieves a string entry's index if it exists. Otherwise, it adds the entry and returns the new index.
 func (st *PrepassStringTableWriter) AddOrGet(s string) int {
 	if ind, ok := st.prepass[s]; ok {
 		ind.count += 1
@@ -1067,7 +1065,6 @@ func (target *Allocation) UnmarshalBinaryWithContext(ctx *DecodingContext) (err 
 	if buff.ReadUInt8() == uint8(0) {
 		target.Properties = nil
 	} else {
-
 		// --- [begin][read][struct](AllocationProperties) ---
 		d := new(AllocationProperties)
 		buff.ReadInt() // [compatibility, unused]
