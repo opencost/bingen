@@ -2,11 +2,6 @@
 Binary Codec Generator for annotated structs in go.
 
 ### Install
-Go modules are verified against a public database on known modules. Since this repository is private, you have to explicitly instruct `go get` to bypass public verification. To do this, set the `GOPRIVATE` environment variable to include this repository. For example:
-```bash
-export GOPRIVATE=github.com/opencost/bingen
-```
-
 Using an ssh-agent and git, issue a global config update:
 ```bash
 $ git config --global url.git@github.com:.insteadOf https://github.com/
@@ -19,7 +14,7 @@ $ go get github.com/opencost/bingen/cmd/bingen
 
 Then install `bingen`:
 ```bash
-$ go install -i github.com/opencost/bingen/cmd/bingen
+$ go install github.com/opencost/bingen/cmd/bingen
 ```
 
 ### Usage
@@ -36,7 +31,7 @@ Flags:
 ```
 
 ##### Buffer
-The buffer flag should point to the location of the `util.Buffer` type. Since this is currently a private repository, it's best to just copy/paste https://github.com/opencost/bingen/blob/main/pkg/util/buffer.go into a `pkg/util` within your project. For instance, let's say you copy `buffer.go` to `pkg/util` in your project `github.com/bruh/gen-test`, then the buffer flag would be passed as `-buffer=github.com/bruh/gen-test/pkg/util`
+The buffer flag should point to the location of the `util.Buffer` type. Since this is currently a private repository, it's best to just copy/paste [https://github.com/opencost/bingen/blob/main/pkg/util/buffer.go](https://github.com/opencost/bingen/blob/78b6ec35c5fc1050e2eb44f0d78ff658985413eb/pkg/util/buffer.go) into a `pkg/util` within your project. For instance, let's say you copy `buffer.go` to `pkg/util` in your project `github.com/bruh/gen-test`, then the buffer flag would be passed as `-buffer=github.com/bruh/gen-test/pkg/util`
 
 ##### Example
 The easiest way to use `bingen` is via `go:generate`. In a project that contains custom struct types you wish to generate `MarshalBinary` and `UnmarshalBinary` methods for, navigate to the target package. Assuming that the package `pkg/stuff` has 3 types you want to generate binary marshal/unmarshal for: `Foo`, `Bar`, and `Widget`, create a new source file in `pkg/stuff` with the following:
@@ -58,6 +53,41 @@ If you're using a non-standard library type as a field on a type targetted for g
 ```go
 // @bingen:import:github.com/acme/widgets/pkg/widget
 ```
+
+##### External Alias Types
+A more advanced version of the *import* command is the *define* command. This is used when you have an alias type that you want to be treated as a first class citizen in the generated code. For example, let's say you have `type WidgetID string` in a `shared` package, and you want to use `shared.WidgetID` on a field within your bingen package. If you were to only use the `// @bingen:import:github.com/acme/widgets/pkg/shared` directive, then the generated code would treat `shared.WidgetID` as a `encoding.BinaryMarshaler` and `encoding.BinaryUnmarshaler` implementation, not as a simple string. In order to have the generated code treat `shared.WidgetID` as a string, you need to define the external alias type with the `define` directive:
+
+Let's say we have the following `WidgetID` alias type in the `github.com/acme/widgets/pkg/shared` package:
+```go 
+package shared
+
+type WidgetID string 
+```
+
+Now, in our target bingen package, we have the following type that uses `shared.WidgetID`:
+```go 
+package stuff 
+
+import "github.com/acme/widgets/pkg/shared"
+
+type Widget struct {
+      ID shared.WidgetID 
+}
+```
+
+Now our bingen syntax will need to include the `define` directive for `shared.WidgetID`:
+```go
+package stuff
+
+// @bingen:define[string]:github.com/acme/widgets/pkg/shared.WidgetID
+
+// @bingen:generate:Widget
+
+//go:generate bingen -package=stuff -version=1 -buffer=github.com/acme/widgets/pkg/util 
+```
+
+Note that the `define` directive also implicitly imports the package, so you do not need to also include an `import` directive for the same package. To summarize, the `import` directive is used when you have a non-standard library type that implements `encoding.BinaryMarshaler` and `encoding.BinaryUnmarshaler`, and you want to use it as a field on a generated type. The `define` directive is used when you have an alias type that does not implement `encoding.BinaryMarshaler` and `encoding.BinaryUnmarshaler`, but you want to treat it as a first class citizen in the generated code with the underlying type's encoding/decoding behavior.
+
 
 ##### Interface Implementations
 It's important that if you type any fields as an `interface`, you'll need to annotate both the interface type as well as any implementations of that type for generation. Continuing the example above, assume we have a `type Thing interface` which both `Bar`, `Widget`, and a new type `Gear` implement. We'll need to add the annotation for both the new type and the interface:
@@ -175,7 +205,7 @@ func postProcessPerson(p *Person) {
 ```
 
 ##### Migration of Types
-Similar to the pre and post processing hooks for generated types, you can also specify a migration hook. A migration hook is used when a higher versioned struct unmarshals from a lesser versioned encoding. The most common used of this feature would be to load older data, make a one time change, then store out the new result data. This hook is enabled via the `generate` options:
+Similar to the pre and post processing hooks for generated types, you can also specify a migration hook. A migration hook is used when a higher versioned struct unmarshals from a lesser versioned encoding. The most common use of this feature would be to load older data, make a one time change, then store out the new result data. This hook is enabled via the `generate` options:
 
 ```go
 // @bingen:generate[stringtable,preprocess,postprocess,migrate]:Person
