@@ -36,14 +36,14 @@ const (
 	// table (where each index is encoded as a string entry in the resource
 	BinaryTagStringTable string = "BGST"
 
-	// DefaultCodecVersion is used for any resources listed in the Default version set
-	DefaultCodecVersion uint8 = 16
+	// AllocationCodecVersion is used for any resources listed in the Allocation version set
+	AllocationCodecVersion uint8 = 16
 
 	// AssetsCodecVersion is used for any resources listed in the Assets version set
 	AssetsCodecVersion uint8 = 16
 
-	// AllocationCodecVersion is used for any resources listed in the Allocation version set
-	AllocationCodecVersion uint8 = 16
+	// DefaultCodecVersion is used for any resources listed in the Default version set
+	DefaultCodecVersion uint8 = 16
 )
 
 //--------------------------------------------------------------------------
@@ -1065,6 +1065,7 @@ func (target *Allocation) UnmarshalBinaryWithContext(ctx *DecodingContext) (err 
 	if buff.ReadUInt8() == uint8(0) {
 		target.Properties = nil
 	} else {
+
 		// --- [begin][read][struct](AllocationProperties) ---
 		d := new(AllocationProperties)
 		buff.ReadInt() // [compatibility, unused]
