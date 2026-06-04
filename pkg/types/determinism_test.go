@@ -72,8 +72,7 @@ func TestLoadTypesIsDeterministic(t *testing.T) {
 
 // copyFixture clones every regular file in src into a fresh t.TempDir() and
 // returns the destination path. It deliberately copies only files in the top
-// level of src (the bingen fixtures don't nest), and skips any pre-existing
-// .go.bak / editor backups that might be present.
+// level of src (the bingen fixtures don't nest).
 func copyFixture(t *testing.T, src string) string {
 	t.Helper()
 
