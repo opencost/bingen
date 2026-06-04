@@ -64,5 +64,6 @@ func (bp *bufferPool) Put(buf []byte) {
 	}
 
 	i := putIndex(capacity)
-	bp.pools[i].Put(buf[:cap(buf)])
+	pooled := buf[:cap(buf)]
+	bp.pools[i].Put(&pooled)
 }
