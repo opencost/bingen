@@ -36,14 +36,14 @@ const (
 	// table (where each index is encoded as a string entry in the resource
 	BinaryTagStringTable string = "BGST"
 
-	// DefaultCodecVersion is used for any resources listed in the Default version set
-	DefaultCodecVersion uint8 = 16
+	// AllocationCodecVersion is used for any resources listed in the Allocation version set
+	AllocationCodecVersion uint8 = 16
 
 	// AssetsCodecVersion is used for any resources listed in the Assets version set
 	AssetsCodecVersion uint8 = 16
 
-	// AllocationCodecVersion is used for any resources listed in the Allocation version set
-	AllocationCodecVersion uint8 = 16
+	// DefaultCodecVersion is used for any resources listed in the Default version set
+	DefaultCodecVersion uint8 = 16
 )
 
 //--------------------------------------------------------------------------
@@ -308,8 +308,7 @@ func NewIndexedStringTableWriter() *IndexedStringTableWriter {
 	}
 }
 
-// AddOrGet atomically retrieves a string entry's index if it exist. Otherwise, it will
-// add the entry and return the index.
+// AddOrGet retrieves a string entry's index if it exists. Otherwise, it adds the entry and returns the new index.
 func (st *IndexedStringTableWriter) AddOrGet(s string) int {
 	if ind, ok := st.indices[s]; ok {
 		return ind
@@ -385,8 +384,7 @@ func NewPrepassStringTableWriter() *PrepassStringTableWriter {
 	}
 }
 
-// AddOrGet atomically retrieves a string entry's index if it exist. Otherwise, it will
-// add the entry and return the index.
+// AddOrGet retrieves a string entry's index if it exists. Otherwise, it adds the entry and returns the new index.
 func (st *PrepassStringTableWriter) AddOrGet(s string) int {
 	if ind, ok := st.prepass[s]; ok {
 		ind.count += 1

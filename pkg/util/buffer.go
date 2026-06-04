@@ -15,8 +15,10 @@ import (
 
 var bytePool *bufferPool = newBufferPool()
 
-// NonPrimitiveTypeError represents an error where the user provided a non-primitive data type for reading/writing
-var NonPrimitiveTypeError error = errors.New("Type provided to read/write does not fit inside 8 bytes.")
+// NonPrimitiveTypeError represents an error where the user provided a non-primitive data type for reading/writing.
+//
+//nolint:staticcheck // ST1012: exported name predates ErrFoo convention in this package.
+var NonPrimitiveTypeError error = errors.New("type provided to read/write does not fit inside 8 bytes")
 
 // Mode is used to represent the 3 possible states of the buffer. note there is
 // no overlapping between states, as each Mode is handled exclusively.
@@ -97,11 +99,11 @@ func (b *Buffer) WriteBool(i bool) {
 	b.checkRO()
 
 	if b.rw != nil {
-		writeBool(b.rw, i)
+		_ = writeBool(b.rw, i)
 		return
 	}
 
-	writeBuffBool(b.w, i)
+	_ = writeBuffBool(b.w, i)
 }
 
 // WriteInt writes an int value to the buffer.
@@ -109,11 +111,11 @@ func (b *Buffer) WriteInt(i int) {
 	b.checkRO()
 
 	if b.rw != nil {
-		writeInt(b.rw, i)
+		_ = writeInt(b.rw, i)
 		return
 	}
 
-	writeBuffInt(b.w, i)
+	_ = writeBuffInt(b.w, i)
 }
 
 // WriteInt8 writes an int8 value to the buffer.
@@ -121,11 +123,11 @@ func (b *Buffer) WriteInt8(i int8) {
 	b.checkRO()
 
 	if b.rw != nil {
-		writeInt8(b.rw, i)
+		_ = writeInt8(b.rw, i)
 		return
 	}
 
-	writeBuffInt8(b.w, i)
+	_ = writeBuffInt8(b.w, i)
 }
 
 // WriteInt16 writes an int16 value to the buffer.
@@ -133,11 +135,11 @@ func (b *Buffer) WriteInt16(i int16) {
 	b.checkRO()
 
 	if b.rw != nil {
-		writeInt16(b.rw, i)
+		_ = writeInt16(b.rw, i)
 		return
 	}
 
-	writeBuffInt16(b.w, i)
+	_ = writeBuffInt16(b.w, i)
 }
 
 // WriteInt32 writes an int32 value to the buffer.
@@ -145,11 +147,11 @@ func (b *Buffer) WriteInt32(i int32) {
 	b.checkRO()
 
 	if b.rw != nil {
-		writeInt32(b.rw, i)
+		_ = writeInt32(b.rw, i)
 		return
 	}
 
-	writeBuffInt32(b.w, i)
+	_ = writeBuffInt32(b.w, i)
 }
 
 // WriteInt64 writes an int64 value to the buffer.
@@ -157,11 +159,11 @@ func (b *Buffer) WriteInt64(i int64) {
 	b.checkRO()
 
 	if b.rw != nil {
-		writeInt64(b.rw, i)
+		_ = writeInt64(b.rw, i)
 		return
 	}
 
-	writeBuffInt64(b.w, i)
+	_ = writeBuffInt64(b.w, i)
 }
 
 // WriteUInt writes a uint value to the buffer.
@@ -169,11 +171,11 @@ func (b *Buffer) WriteUInt(i uint) {
 	b.checkRO()
 
 	if b.rw != nil {
-		writeUint(b.rw, i)
+		_ = writeUint(b.rw, i)
 		return
 	}
 
-	writeBuffUint(b.w, i)
+	_ = writeBuffUint(b.w, i)
 }
 
 // WriteUInt8 writes a uint8 value to the buffer.
@@ -181,11 +183,11 @@ func (b *Buffer) WriteUInt8(i uint8) {
 	b.checkRO()
 
 	if b.rw != nil {
-		writeUint8(b.rw, i)
+		_ = writeUint8(b.rw, i)
 		return
 	}
 
-	writeBuffUint8(b.w, i)
+	_ = writeBuffUint8(b.w, i)
 }
 
 // WriteUInt16 writes a uint16 value to the buffer.
@@ -193,11 +195,11 @@ func (b *Buffer) WriteUInt16(i uint16) {
 	b.checkRO()
 
 	if b.rw != nil {
-		writeUint16(b.rw, i)
+		_ = writeUint16(b.rw, i)
 		return
 	}
 
-	writeBuffUint16(b.w, i)
+	_ = writeBuffUint16(b.w, i)
 }
 
 // WriteUInt32 writes a uint32 value to the buffer.
@@ -205,11 +207,11 @@ func (b *Buffer) WriteUInt32(i uint32) {
 	b.checkRO()
 
 	if b.rw != nil {
-		writeUint32(b.rw, i)
+		_ = writeUint32(b.rw, i)
 		return
 	}
 
-	writeBuffUint32(b.w, i)
+	_ = writeBuffUint32(b.w, i)
 }
 
 // WriteUInt64 writes a uint64 value to the buffer.
@@ -217,11 +219,11 @@ func (b *Buffer) WriteUInt64(i uint64) {
 	b.checkRO()
 
 	if b.rw != nil {
-		writeUint64(b.rw, i)
+		_ = writeUint64(b.rw, i)
 		return
 	}
 
-	writeBuffUint64(b.w, i)
+	_ = writeBuffUint64(b.w, i)
 }
 
 // WriteFloat32 writes a float32 value to the buffer.
@@ -229,11 +231,11 @@ func (b *Buffer) WriteFloat32(i float32) {
 	b.checkRO()
 
 	if b.rw != nil {
-		writeFloat32(b.rw, i)
+		_ = writeFloat32(b.rw, i)
 		return
 	}
 
-	writeBuffFloat32(b.w, i)
+	_ = writeBuffFloat32(b.w, i)
 }
 
 // WriteFloat64 writes a float64 value to the buffer.
@@ -241,11 +243,11 @@ func (b *Buffer) WriteFloat64(i float64) {
 	b.checkRO()
 
 	if b.rw != nil {
-		writeFloat64(b.rw, i)
+		_ = writeFloat64(b.rw, i)
 		return
 	}
 
-	writeBuffFloat64(b.w, i)
+	_ = writeBuffFloat64(b.w, i)
 }
 
 // WriteString writes the string's length as a uint16 followed by the string contents.
@@ -261,13 +263,13 @@ func (b *Buffer) WriteString(i string) {
 	l := uint16(len(s))
 
 	if b.rw != nil {
-		writeUint16(b.rw, l)
+		_ = writeUint16(b.rw, l)
 		b.rw.Write(s)
 		return
 	}
 
-	writeBuffUint16(b.w, l)
-	b.w.Write(s)
+	_ = writeBuffUint16(b.w, l)
+	_, _ = b.w.Write(s)
 }
 
 // WriteBytes writes the contents of the byte slice to the buffer.
@@ -279,7 +281,7 @@ func (b *Buffer) WriteBytes(bytes []byte) {
 		return
 	}
 
-	b.w.Write(bytes)
+	_, _ = b.w.Write(bytes)
 }
 
 // Bytes returns the unread portion of the underlying buffer storage. If the buffer was
@@ -304,7 +306,7 @@ func (b *Buffer) Peek(length int) ([]byte, error) {
 	b.checkWO()
 
 	if b.rw != nil {
-		return nil, fmt.Errorf("unsupported Peek() operation on read/write buffer.")
+		return nil, fmt.Errorf("unsupported Peek() operation on read/write buffer")
 	}
 
 	return b.r.Peek(length)
@@ -351,11 +353,11 @@ func (b *Buffer) ReadBool() bool {
 
 	var i bool
 	if b.rw != nil {
-		readBool(b.rw, &i)
+		_ = readBool(b.rw, &i)
 		return i
 	}
 
-	readBuffBool(b.r, &i)
+	_ = readBuffBool(b.r, &i)
 	return i
 }
 
@@ -365,11 +367,11 @@ func (b *Buffer) ReadInt() int {
 
 	var i int
 	if b.rw != nil {
-		readInt(b.rw, &i)
+		_ = readInt(b.rw, &i)
 		return i
 	}
 
-	readBuffInt(b.r, &i)
+	_ = readBuffInt(b.r, &i)
 	return i
 }
 
@@ -379,11 +381,11 @@ func (b *Buffer) ReadInt8() int8 {
 
 	var i int8
 	if b.rw != nil {
-		readInt8(b.rw, &i)
+		_ = readInt8(b.rw, &i)
 		return i
 	}
 
-	readBuffInt8(b.r, &i)
+	_ = readBuffInt8(b.r, &i)
 	return i
 }
 
@@ -393,11 +395,11 @@ func (b *Buffer) ReadInt16() int16 {
 
 	var i int16
 	if b.rw != nil {
-		readInt16(b.rw, &i)
+		_ = readInt16(b.rw, &i)
 		return i
 	}
 
-	readBuffInt16(b.r, &i)
+	_ = readBuffInt16(b.r, &i)
 	return i
 }
 
@@ -407,11 +409,11 @@ func (b *Buffer) ReadInt32() int32 {
 
 	var i int32
 	if b.rw != nil {
-		readInt32(b.rw, &i)
+		_ = readInt32(b.rw, &i)
 		return i
 	}
 
-	readBuffInt32(b.r, &i)
+	_ = readBuffInt32(b.r, &i)
 	return i
 }
 
@@ -421,11 +423,11 @@ func (b *Buffer) ReadInt64() int64 {
 
 	var i int64
 	if b.rw != nil {
-		readInt64(b.rw, &i)
+		_ = readInt64(b.rw, &i)
 		return i
 	}
 
-	readBuffInt64(b.r, &i)
+	_ = readBuffInt64(b.r, &i)
 	return i
 }
 
@@ -435,11 +437,11 @@ func (b *Buffer) ReadUInt() uint {
 
 	var i uint
 	if b.rw != nil {
-		readUint(b.rw, &i)
+		_ = readUint(b.rw, &i)
 		return i
 	}
 
-	readBuffUint(b.r, &i)
+	_ = readBuffUint(b.r, &i)
 	return i
 }
 
@@ -449,11 +451,11 @@ func (b *Buffer) ReadUInt8() uint8 {
 
 	var i uint8
 	if b.rw != nil {
-		readUint8(b.rw, &i)
+		_ = readUint8(b.rw, &i)
 		return i
 	}
 
-	readBuffUint8(b.r, &i)
+	_ = readBuffUint8(b.r, &i)
 	return i
 }
 
@@ -463,11 +465,11 @@ func (b *Buffer) ReadUInt16() uint16 {
 
 	var i uint16
 	if b.rw != nil {
-		readUint16(b.rw, &i)
+		_ = readUint16(b.rw, &i)
 		return i
 	}
 
-	readBuffUint16(b.r, &i)
+	_ = readBuffUint16(b.r, &i)
 	return i
 }
 
@@ -477,11 +479,11 @@ func (b *Buffer) ReadUInt32() uint32 {
 
 	var i uint32
 	if b.rw != nil {
-		readUint32(b.rw, &i)
+		_ = readUint32(b.rw, &i)
 		return i
 	}
 
-	readBuffUint32(b.r, &i)
+	_ = readBuffUint32(b.r, &i)
 	return i
 }
 
@@ -491,11 +493,11 @@ func (b *Buffer) ReadUInt64() uint64 {
 
 	var i uint64
 	if b.rw != nil {
-		readUint64(b.rw, &i)
+		_ = readUint64(b.rw, &i)
 		return i
 	}
 
-	readBuffUint64(b.r, &i)
+	_ = readBuffUint64(b.r, &i)
 	return i
 }
 
@@ -505,11 +507,11 @@ func (b *Buffer) ReadFloat32() float32 {
 
 	var i float32
 	if b.rw != nil {
-		readFloat32(b.rw, &i)
+		_ = readFloat32(b.rw, &i)
 		return i
 	}
 
-	readBuffFloat32(b.r, &i)
+	_ = readBuffFloat32(b.r, &i)
 	return i
 }
 
@@ -519,11 +521,11 @@ func (b *Buffer) ReadFloat64() float64 {
 
 	var i float64
 	if b.rw != nil {
-		readFloat64(b.rw, &i)
+		_ = readFloat64(b.rw, &i)
 		return i
 	}
 
-	readBuffFloat64(b.r, &i)
+	_ = readBuffFloat64(b.r, &i)
 	return i
 }
 
@@ -534,11 +536,11 @@ func (b *Buffer) ReadString() string {
 
 	var l uint16
 	if b.rw != nil {
-		readUint16(b.rw, &l)
+		_ = readUint16(b.rw, &l)
 		return bytesToString(b.rw.Next(int(l)))
 	}
 
-	readBuffUint16(b.r, &l)
+	_ = readBuffUint16(b.r, &l)
 
 	bytes := bytePool.Get(int(l))
 	defer bytePool.Put(bytes)

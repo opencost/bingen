@@ -80,7 +80,9 @@ func main() {
 
 	codecPath := path.Join(dir, fmt.Sprintf("%s_codecs.go", *packageName))
 	if fileExists(codecPath) {
-		os.Remove(codecPath)
+		if err := os.Remove(codecPath); err != nil {
+			log.Fatalf("failed to remove existing codec file %q: %v", codecPath, err)
+		}
 	}
 
 	defaultVersion := uint8(*version)

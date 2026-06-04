@@ -6,6 +6,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -426,7 +427,7 @@ func (tc *typeCollector) AddAlias(t *AnnotatedType, isPtr bool) {
 func (tc *typeCollector) addTypeDefinition(def *meta.TypeDefinition) {
 	typeSpec, err := ParseDefined(def)
 	if err != nil {
-		panic(fmt.Errorf("Failed to parse type definition: %s - Error: %w", def.Name, err))
+		panic(fmt.Errorf("failed to parse type definition %s: %w", def.Name, err))
 	}
 
 	resolved := tc.toGenType(typeSpec.Type, "", false)
@@ -445,10 +446,13 @@ func (tc *typeCollector) Types() []GenType {
 
 // Imports returns a slice of imports to include in the generated source
 func (tc *typeCollector) Imports() []string {
-	im := []string{}
+	im := make([]string, 0, len(tc.imports))
 	for _, v := range tc.imports {
 		im = append(im, v)
 	}
+	// go/format reorders the import block in generated *_codecs.go; this sort
+	// only stabilizes tc.Imports() for callers/tests, not final file layout.
+	sort.Strings(im)
 	return im
 }
 
@@ -485,9 +489,7 @@ func (tc *typeCollector) toStructField(typeName string, typeField *AnnotatedFiel
 
 	// filter fields to ignore
 	names := []*ast.Ident{}
-	for _, i := range f.Names {
-		names = append(names, i)
-	}
+	names = append(names, f.Names...)
 	if len(names) == 0 {
 		return fields
 	}
@@ -704,15 +706,15 @@ func findFields(t *AnnotatedType) ([]*AnnotatedField, error) {
 // create field opts from the field annotation
 func toFieldOpts(a *meta.Annotation) (*FieldOpts, error) {
 	if a == nil {
-		return nil, fmt.Errorf("Nil Annotation")
+		return nil, fmt.Errorf("nil annotation")
 	}
 	if a.Command != meta.AnnotationField {
-		return nil, fmt.Errorf("Field annotation does not use 'field' command.")
+		return nil, fmt.Errorf("field annotation does not use 'field' command")
 	}
 
 	var version uint8
 	var defaultVal string
-	var ignore bool = false
+	ignore := false
 
 	for option := range a.Options {
 		if option == meta.AnnotationFieldIgnore {
@@ -722,7 +724,7 @@ func toFieldOpts(a *meta.Annotation) (*FieldOpts, error) {
 
 		strs := strings.Split(option, "=")
 		if len(strs) < 2 {
-			return nil, fmt.Errorf("No set(=) detected for option.")
+			return nil, fmt.Errorf("no set(=) detected for option")
 		}
 
 		prop := strings.TrimSpace(strs[0])
@@ -730,7 +732,7 @@ func toFieldOpts(a *meta.Annotation) (*FieldOpts, error) {
 		if prop == meta.AnnotationFieldVersion {
 			r, err := strconv.ParseUint(value, 10, 8)
 			if err != nil {
-				return nil, fmt.Errorf("Failed to parse uint8 version from: \"%s\"", value)
+				return nil, fmt.Errorf("failed to parse uint8 version from %q", value)
 			}
 			version = uint8(r)
 		}
@@ -766,9 +768,28 @@ func LoadTypes(dir string, pkg string, defaultVersion uint8) (TypeCollection, er
 
 	typeCollector := NewTypeCollection(annotations)
 
-	for k, v := range packages {
+	// Visit packages and files in sorted order. generator.Generate sorts types
+	// alphabetically before emission, but registration order here still affects
+	// whether cross-package struct fields are captured as ReferenceType vs a
+	// resolved StructType, which can change generated unmarshaller text.
+	pkgNames := make([]string, 0, len(packages))
+	for k := range packages {
+		pkgNames = append(pkgNames, k)
+	}
+	sort.Strings(pkgNames)
+
+	for _, k := range pkgNames {
+		v := packages[k]
 		fmt.Printf("Package: %s\n", k)
-		for kk, file := range v.Files {
+
+		fileNames := make([]string, 0, len(v.Files))
+		for kk := range v.Files {
+			fileNames = append(fileNames, kk)
+		}
+		sort.Strings(fileNames)
+
+		for _, kk := range fileNames {
+			file := v.Files[kk]
 			fmt.Printf("File: %s\n", kk)
 
 			types := findTypes(file, annotations.VersionSets, defaultVersion)

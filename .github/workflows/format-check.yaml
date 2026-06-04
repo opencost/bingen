@@ -1,0 +1,31 @@
+name: Format Check
+
+on:
+  pull_request:
+    branches:
+      - main
+  merge_group:
+    types: [checks_requested]
+
+permissions:
+  contents: read
+
+jobs:
+  format-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - name: Install Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Check formatting
+        run: |
+          # tests/opencost is a legacy OpenCost fixture copied for generator
+          # coverage; skip it so unrelated comment alignment churn stays out of CI.
+          unformatted="$(gofmt -l . | grep -v '^tests/opencost/' || true)"
+          if [ -n "$unformatted" ]; then
+            echo "The following files are not gofmt-formatted:"
+            echo "$unformatted"
+            exit 1
+          fi
