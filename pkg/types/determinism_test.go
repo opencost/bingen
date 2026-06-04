@@ -49,7 +49,15 @@ func TestLoadTypesIsDeterministic(t *testing.T) {
 	// annotated types and multiple version sets, so it exercises both the
 	// package/file ordering in LoadTypes and the version set ordering in
 	// LoadAnnotations.
-	dir := findFixtureDir(t, "opencost")
+	//
+	// We copy the fixture into a t.TempDir() first so that when this test runs
+	// in parallel with tests/generator_test.go (which rewrites
+	// tests/opencost/opencost_codecs.go in place via runGenerator), the live
+	// fixture flicker doesn't make our parse results racy. The fingerprint
+	// depends on the parsed AST of the files under `dir`, so the directory
+	// has to be stable for the duration of the test.
+	src := findFixtureDir(t, "opencost")
+	dir := copyFixture(t, src)
 
 	first := fingerprintLoad(t, dir, "opencost", 16)
 
@@ -60,6 +68,33 @@ func TestLoadTypesIsDeterministic(t *testing.T) {
 				i, first, i, got)
 		}
 	}
+}
+
+// copyFixture clones every regular file in src into a fresh t.TempDir() and
+// returns the destination path. It deliberately copies only files in the top
+// level of src (the bingen fixtures don't nest), and skips any pre-existing
+// .go.bak / editor backups that might be present.
+func copyFixture(t *testing.T, src string) string {
+	t.Helper()
+
+	dst := t.TempDir()
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		t.Fatalf("os.ReadDir(%s) failed: %v", src, err)
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(src, e.Name()))
+		if err != nil {
+			t.Fatalf("os.ReadFile(%s) failed: %v", filepath.Join(src, e.Name()), err)
+		}
+		if err := os.WriteFile(filepath.Join(dst, e.Name()), data, 0o600); err != nil {
+			t.Fatalf("os.WriteFile(%s) failed: %v", filepath.Join(dst, e.Name()), err)
+		}
+	}
+	return dst
 }
 
 // fingerprintLoad runs LoadTypes once and produces a stable string capturing
