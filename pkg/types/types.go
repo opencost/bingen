@@ -6,6 +6,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -445,10 +446,13 @@ func (tc *typeCollector) Types() []GenType {
 
 // Imports returns a slice of imports to include in the generated source
 func (tc *typeCollector) Imports() []string {
-	im := []string{}
+	im := make([]string, 0, len(tc.imports))
 	for _, v := range tc.imports {
 		im = append(im, v)
 	}
+	// Sort for deterministic codegen - tc.imports is a map, so range order is
+	// randomized and would otherwise produce import-block churn between runs.
+	sort.Strings(im)
 	return im
 }
 
@@ -764,9 +768,32 @@ func LoadTypes(dir string, pkg string, defaultVersion uint8) (TypeCollection, er
 
 	typeCollector := NewTypeCollection(annotations)
 
-	for k, v := range packages {
+	// Visit packages and their files in a deterministic order. Map iteration in
+	// Go is randomized, and the order in which we register types here affects
+	// whether cross-references between annotated structs (e.g. Allocation's
+	// Properties *AllocationProperties field) resolve to a known type
+	// immediately or are deferred to a ReferenceType+Resolve callback. Those
+	// two paths render slightly different code from the unmarshaller templates,
+	// which would otherwise cause *_codecs.go output to differ between
+	// successive runs of the generator.
+	pkgNames := make([]string, 0, len(packages))
+	for k := range packages {
+		pkgNames = append(pkgNames, k)
+	}
+	sort.Strings(pkgNames)
+
+	for _, k := range pkgNames {
+		v := packages[k]
 		fmt.Printf("Package: %s\n", k)
-		for kk, file := range v.Files {
+
+		fileNames := make([]string, 0, len(v.Files))
+		for kk := range v.Files {
+			fileNames = append(fileNames, kk)
+		}
+		sort.Strings(fileNames)
+
+		for _, kk := range fileNames {
+			file := v.Files[kk]
 			fmt.Printf("File: %s\n", kk)
 
 			types := findTypes(file, annotations.VersionSets, defaultVersion)

@@ -310,13 +310,20 @@ func LoadAnnotations(packages map[string]*ast.Package, defaultVersion uint8) (*B
 		}
 	}
 
-	sets := []VersionSet{}
+	sets := make([]VersionSet, 0, len(ac.sets))
 	for _, v := range ac.sets {
 		if v.name == AnnotationDefaultSetName {
 			v.version = defaultVersion
 		}
 		sets = append(sets, v)
 	}
+	// Sort to make the resulting slice (and therefore all downstream generator
+	// output that ranges over it) deterministic. Map iteration order in Go is
+	// randomized, which would otherwise cause *_codecs.go files to differ
+	// between runs and defeat the "codecs up to date" CI check.
+	slices.SortFunc(sets, func(a, b VersionSet) int {
+		return strings.Compare(a.Name(), b.Name())
+	})
 
 	imports := make([]string, len(ac.imports))
 	copy(imports, ac.imports)
