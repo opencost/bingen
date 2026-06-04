@@ -450,8 +450,8 @@ func (tc *typeCollector) Imports() []string {
 	for _, v := range tc.imports {
 		im = append(im, v)
 	}
-	// Sort for deterministic codegen - tc.imports is a map, so range order is
-	// randomized and would otherwise produce import-block churn between runs.
+	// go/format reorders the import block in generated *_codecs.go; this sort
+	// only stabilizes tc.Imports() for callers/tests, not final file layout.
 	sort.Strings(im)
 	return im
 }
@@ -768,14 +768,10 @@ func LoadTypes(dir string, pkg string, defaultVersion uint8) (TypeCollection, er
 
 	typeCollector := NewTypeCollection(annotations)
 
-	// Visit packages and their files in a deterministic order. Map iteration in
-	// Go is randomized, and the order in which we register types here affects
-	// whether cross-references between annotated structs (e.g. Allocation's
-	// Properties *AllocationProperties field) resolve to a known type
-	// immediately or are deferred to a ReferenceType+Resolve callback. Those
-	// two paths render slightly different code from the unmarshaller templates,
-	// which would otherwise cause *_codecs.go output to differ between
-	// successive runs of the generator.
+	// Visit packages and files in sorted order. generator.Generate sorts types
+	// alphabetically before emission, but registration order here still affects
+	// whether cross-package struct fields are captured as ReferenceType vs a
+	// resolved StructType, which can change generated unmarshaller text.
 	pkgNames := make([]string, 0, len(packages))
 	for k := range packages {
 		pkgNames = append(pkgNames, k)

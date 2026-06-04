@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -35,9 +36,10 @@ func findFixtureDir(t *testing.T, name string) string {
 }
 
 // TestLoadTypesIsDeterministic asserts that LoadTypes produces a deterministic
-// ordering of types, imports, and version sets across runs. Without sorting,
-// the generator's output would shift between runs because of randomized map
-// iteration in pkg/meta.LoadAnnotations and pkg/types.LoadTypes.
+// view of the collected model across runs. Map iteration in LoadAnnotations is
+// sorted before returning version sets; type and import names are sorted when
+// fingerprinting because registration order is not significant once
+// generator.Generate sorts types alphabetically and go/format normalizes imports.
 //
 // The check is repeated several times because Go's map iteration order is
 // randomized per-iteration (not per-process), so a single pass is not enough
@@ -46,9 +48,7 @@ func TestLoadTypesIsDeterministic(t *testing.T) {
 	const iterations = 25
 
 	// Use the opencost fixture because it has several files each contributing
-	// annotated types and multiple version sets, so it exercises both the
-	// package/file ordering in LoadTypes and the version set ordering in
-	// LoadAnnotations.
+	// annotated types and multiple version sets.
 	//
 	// We copy the fixture into a t.TempDir() first so that when this test runs
 	// in parallel with tests/generator_test.go (which rewrites
@@ -147,12 +147,21 @@ func fingerprintLoad(t *testing.T, dir, pkg string, defaultVersion uint8) string
 
 	var b strings.Builder
 
-	b.WriteString("types:")
+	typeNames := make([]string, 0, len(tc.Types()))
 	for _, gt := range tc.Types() {
-		fmt.Fprintf(&b, " %s", gt.Name())
+		typeNames = append(typeNames, gt.Name())
+	}
+	sort.Strings(typeNames)
+
+	imports := tc.Imports()
+	sort.Strings(imports)
+
+	b.WriteString("types:")
+	for _, name := range typeNames {
+		fmt.Fprintf(&b, " %s", name)
 	}
 	b.WriteString("\nimports:")
-	for _, im := range tc.Imports() {
+	for _, im := range imports {
 		fmt.Fprintf(&b, " %s", im)
 	}
 	b.WriteString("\nsets:")

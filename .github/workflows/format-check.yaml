@@ -21,7 +21,9 @@ jobs:
           go-version-file: go.mod
       - name: Check formatting
         run: |
-          unformatted="$(gofmt -l .)"
+          # tests/opencost is a legacy OpenCost fixture copied for generator
+          # coverage; skip it so unrelated comment alignment churn stays out of CI.
+          unformatted="$(gofmt -l . | grep -v '^tests/opencost/' || true)"
           if [ -n "$unformatted" ]; then
             echo "The following files are not gofmt-formatted:"
             echo "$unformatted"
