@@ -1,0 +1,68 @@
+name: Codecs Up-to-date
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  merge_group:
+    types: [checks_requested]
+
+permissions:
+  contents: read
+
+jobs:
+  codecs:
+    name: Verify generated codecs are committed
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - name: Install Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "stable"
+
+      - name: Go mod cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+
+      # The TestGenerate* tests in tests/generator_test.go regenerate each
+      # fixture package's *_codecs.go via pkg/generator. Running them with a
+      # clean checkout therefore rewrites those files to whatever bingen
+      # would currently produce against the committed generator, templates,
+      # and bingen.go annotations.
+      - name: Regenerate codecs via TestGenerate
+        run: go test -run '^TestGenerate' ./tests -count=1
+
+      - name: Diff committed codecs vs regenerated output
+        run: |
+          set -o pipefail
+          if ! git diff --exit-code -- 'tests/**/*_codecs.go'; then
+            echo ""
+            echo "::error title=Codecs out of date::Committed *_codecs.go files do not match the generator output. Run \`go test -run ^TestGenerate ./tests\` locally and commit the updated files."
+            echo ""
+            echo "Affected files:"
+            git diff --name-only -- 'tests/**/*_codecs.go'
+            echo ""
+            echo "Full diff:"
+            git --no-pager diff -- 'tests/**/*_codecs.go'
+            exit 1
+          fi
+
+      # Belt-and-suspenders: also verify no other tracked files drifted -
+      # for example, a template change that affected non-codec output, or
+      # a bingen.go annotation that the regenerator rewrote.
+      - name: Verify no other tracked files drifted
+        run: |
+          if ! git diff --exit-code; then
+            echo ""
+            echo "::error title=Tracked files drifted::Running the generator tests modified files other than *_codecs.go. This is unexpected; please investigate the generator or templates."
+            exit 1
+          fi
