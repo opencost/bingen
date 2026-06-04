@@ -18,7 +18,7 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@v6
         with:
-          go-version: "stable"
+          go-version-file: go.mod
       - name: Check formatting
         run: |
           unformatted="$(gofmt -l .)"
