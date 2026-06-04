@@ -1,4 +1,7 @@
 # bingen
+
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/opencost/bingen/badge)](https://scorecard.dev/viewer/?uri=github.com/opencost/bingen)
+
 Binary Codec Generator for annotated structs in go.
 
 ### Install
