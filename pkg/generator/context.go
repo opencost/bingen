@@ -61,7 +61,6 @@ type GeneratorContextFactory interface {
 
 // genContextFactory is the default implementation of GeneratorContextFactory
 type genContextFactory struct {
-	version      uint8
 	errorHandler func(string) string
 }
 

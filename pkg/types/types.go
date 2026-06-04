@@ -427,7 +427,7 @@ func (tc *typeCollector) AddAlias(t *AnnotatedType, isPtr bool) {
 func (tc *typeCollector) addTypeDefinition(def *meta.TypeDefinition) {
 	typeSpec, err := ParseDefined(def)
 	if err != nil {
-		panic(fmt.Errorf("Failed to parse type definition: %s - Error: %w", def.Name, err))
+		panic(fmt.Errorf("failed to parse type definition %s: %w", def.Name, err))
 	}
 
 	resolved := tc.toGenType(typeSpec.Type, "", false)
