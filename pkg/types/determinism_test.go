@@ -86,15 +86,52 @@ func copyFixture(t *testing.T, src string) string {
 		if e.IsDir() {
 			continue
 		}
-		data, err := os.ReadFile(filepath.Join(src, e.Name()))
-		if err != nil {
-			t.Fatalf("os.ReadFile(%s) failed: %v", filepath.Join(src, e.Name()), err)
+		name := e.Name()
+		if isFixtureBackup(name) {
+			continue
 		}
-		if err := os.WriteFile(filepath.Join(dst, e.Name()), data, 0o600); err != nil {
-			t.Fatalf("os.WriteFile(%s) failed: %v", filepath.Join(dst, e.Name()), err)
+		data, err := os.ReadFile(filepath.Join(src, name))
+		if err != nil {
+			t.Fatalf("os.ReadFile(%s) failed: %v", filepath.Join(src, name), err)
+		}
+		if err := os.WriteFile(filepath.Join(dst, name), data, 0o600); err != nil {
+			t.Fatalf("os.WriteFile(%s) failed: %v", filepath.Join(dst, name), err)
 		}
 	}
 	return dst
+}
+
+func isFixtureBackup(name string) bool {
+	return strings.HasSuffix(name, ".go.bak") ||
+		strings.HasSuffix(name, "~") ||
+		strings.HasSuffix(name, ".swp")
+}
+
+func TestCopyFixtureSkipsBackups(t *testing.T) {
+	src := t.TempDir()
+	for _, name := range []string{"valid.go", "backup.go.bak", "emacs.go~", "swap.swp"} {
+		if err := os.WriteFile(filepath.Join(src, name), []byte(name), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(%s) failed: %v", name, err)
+		}
+	}
+
+	dst := copyFixture(t, src)
+
+	for _, name := range []string{"backup.go.bak", "emacs.go~", "swap.swp"} {
+		if _, err := os.Stat(filepath.Join(dst, name)); err == nil {
+			t.Fatalf("expected %q to be skipped, but it was copied", name)
+		} else if !os.IsNotExist(err) {
+			t.Fatalf("os.Stat(%s) failed: %v", name, err)
+		}
+	}
+
+	data, err := os.ReadFile(filepath.Join(dst, "valid.go"))
+	if err != nil {
+		t.Fatalf("os.ReadFile(valid.go) failed: %v", err)
+	}
+	if string(data) != "valid.go" {
+		t.Fatalf("valid.go: got %q, want %q", data, "valid.go")
+	}
 }
 
 // fingerprintLoad runs LoadTypes once and produces a stable string capturing
