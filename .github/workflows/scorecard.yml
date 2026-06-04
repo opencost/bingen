@@ -14,7 +14,13 @@ jobs:
   analysis:
     name: Scorecard analysis
     runs-on: ubuntu-latest
-    if: github.event.repository.default_branch == github.ref_name || github.event_name == 'pull_request'
+    # OSSF Scorecard only makes sense to run against the default branch's view
+    # of the repository (branch-protection rules, dependency policy, etc.).
+    # The previous condition also OR'd in 'pull_request', but this workflow's
+    # triggers (branch_protection_rule, schedule, push@main) never produce a
+    # pull_request event, so that branch was unreachable and just obscured the
+    # intent.
+    if: github.event.repository.default_branch == github.ref_name
     permissions:
       security-events: write
       id-token: write
