@@ -17,8 +17,7 @@ func newBufferPool() *bufferPool {
 	for i := 0; i < 17; i++ {
 		length := 1 << i
 		bp.pools[i].New = func() any {
-			buf := make([]byte, length)
-			return &buf
+			return make([]byte, length)
 		}
 	}
 	return bp
@@ -54,7 +53,7 @@ func (bp *bufferPool) Get(length int) []byte {
 	}
 
 	i := poolIndex(length)
-	buf := *bp.pools[i].Get().(*[]byte)
+	buf := bp.pools[i].Get().([]byte)
 	return buf[:length]
 }
 
@@ -65,6 +64,5 @@ func (bp *bufferPool) Put(buf []byte) {
 	}
 
 	i := putIndex(capacity)
-	pooled := buf[:cap(buf)]
-	bp.pools[i].Put(&pooled)
+	bp.pools[i].Put(buf[:cap(buf)])
 }
