@@ -15,7 +15,6 @@ on:
 permissions:
   actions: read
   contents: read
-  security-events: write
 
 jobs:
   analyze:
@@ -39,3 +38,10 @@ jobs:
 
       - name: Perform CodeQL analysis
         uses: github/codeql-action/analyze@v4
+        with:
+          # Run the analysis purely for in-PR feedback / job-level pass-fail;
+          # do not upload SARIF results to the GitHub Security tab. The
+          # 'security-events: write' permission is also dropped above so the
+          # workflow token cannot write security events even if a future
+          # change inadvertently re-enabled upload.
+          upload: never
