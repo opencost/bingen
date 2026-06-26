@@ -16,7 +16,7 @@ const DefaultBufferPackage string = "github.com/opencost/bingen/pkg/util"
 
 var (
 	packageName = flag.String("package", "", "package name to generate binary codecs for")
-	buffer      = flag.String("buffer", "github.com/opencost/bingen/pkg/util", "qualified package for the Buffer type")
+	buffer      = flag.String("buffer", "github.com/opencost/bingen/pkg/util", "[DEPRECATED] qualified package for the Buffer type")
 	version     = flag.Uint("version", 1, "the versioning to use for the binary generator")
 	//output      = flag.String("output", "", "output file name; default srcdir/<pkg>_codecs.go")
 )
@@ -59,9 +59,8 @@ func main() {
 		os.Exit(2)
 	}
 
-	if len(*buffer) == 0 {
-		s := DefaultBufferPackage
-		buffer = &s
+	if len(*buffer) != 0 {
+		fmt.Fprintf(os.Stderr, "DEPRECATED use of the -buffer option. Supplied value of: %s is ignored.\nBingen always uses github.com/opencost/bingen/pkg/util/Buffer", *buffer)
 	}
 
 	// We accept either one directory or a list of files. Which do we have?
@@ -92,5 +91,5 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Failed to parse @bingen annotations: %s", err)
 		return
 	}
-	generator.Generate(dir, *packageName, *buffer, tc)
+	generator.Generate(dir, *packageName, DefaultBufferPackage, tc)
 }
