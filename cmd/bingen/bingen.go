@@ -59,7 +59,13 @@ func main() {
 		os.Exit(2)
 	}
 
-	if len(*buffer) != 0 {
+	bufferWasSet := false
+	flag.CommandLine.Visit(func(f *flag.Flag) {
+		if f.Name == "buffer" {
+			bufferWasSet = true
+		}
+	})
+	if bufferWasSet {
 		fmt.Fprintf(os.Stderr, "DEPRECATED use of the -buffer option. Supplied value of: %s is ignored.\nBingen always uses github.com/opencost/bingen/pkg/util/Buffer", *buffer)
 	}
 
