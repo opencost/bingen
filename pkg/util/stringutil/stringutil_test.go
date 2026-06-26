@@ -183,7 +183,7 @@ func BenchmarkStringBankFunc50PercentDuplicate(b *testing.B) {
 	sb := stringutil.NewStringBank()
 	stringutil.UpdateStringBank(sb)
 
-	benchmarkStringBank(b, standardBankTest, 1_000_000, 100_000, true)
+	benchmarkStringBank(b, standardBankTest, 1_000_000, 500_000, true)
 }
 
 func BenchmarkStringBankFunc25PercentDuplicate(b *testing.B) {
