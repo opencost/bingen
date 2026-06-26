@@ -22,7 +22,7 @@ var (
 	lock sync.RWMutex
 
 	// stringBank is an unbounded string cache that is thread-safe. It is especially useful if
-	// storing a large frequency of dynamically allocated duplicate bank.
+	// storing a large frequency of dynamically allocated duplicate strings.
 	bank StringBank = NewStringBank()
 )
 
