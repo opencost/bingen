@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/opencost/bingen/pkg/generator/vars"
+	"github.com/opencost/bingen/internal/generator/vars"
 )
 
 func checkVarNames(t *testing.T, current string, varName ...string) bool {

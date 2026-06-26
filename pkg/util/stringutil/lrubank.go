@@ -4,6 +4,7 @@ import (
 	"container/heap"
 	"sync"
 	"time"
+	"weak"
 )
 
 type lruEntry struct {
@@ -66,6 +67,10 @@ func NewLruStringBank(capacity int, evictionInterval time.Duration) StringBank {
 		capacity: capacity,
 	}
 
+	// use a weak reference to the lru bank such that our goroutine doesn't
+	// prevent GC.
+	bankInst := weak.Make(bank)
+
 	go func() {
 		for {
 			select {
@@ -74,10 +79,14 @@ func NewLruStringBank(capacity int, evictionInterval time.Duration) StringBank {
 			case <-time.After(evictionInterval):
 			}
 
-			// need to take the lock during eviction
-			bank.lock.Lock()
-			evict(bank, capacity)
-			bank.lock.Unlock()
+			// need to take the lock during eviction, ensure our
+			// reference is still valid first.
+			bank := bankInst.Value()
+			if bank != nil {
+				bank.lock.Lock()
+				evict(bank, capacity)
+				bank.lock.Unlock()
+			}
 		}
 	}()
 
@@ -109,26 +118,6 @@ func (sb *lruStringBank) Stop() {
 		close(sb.stop)
 		sb.stop = nil
 	}
-}
-
-func (sb *lruStringBank) LoadOrStore(key, value string) (string, bool) {
-	sb.lock.Lock()
-
-	if v, ok := sb.m[key]; ok {
-		v.used = time.Now().UnixMilli()
-		sb.lock.Unlock()
-		return v.value, ok
-	}
-
-	sb.m[key] = &lruEntry{
-		value: value,
-		used:  time.Now().UnixMilli(),
-	}
-	if len(sb.m) > (sb.capacity + (sb.capacity / 2)) {
-		evict(sb, sb.capacity)
-	}
-	sb.lock.Unlock()
-	return value, false
 }
 
 func (sb *lruStringBank) LoadOrStoreFunc(key string, f func() string) (string, bool) {

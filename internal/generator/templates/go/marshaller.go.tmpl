@@ -274,7 +274,7 @@
 // into a byte array
 func (target *{{ .Type.Name }}) MarshalBinary() (data []byte, err error) {
 {{- if .Context.IsStringTable }}
-	ctx := NewEncodingContext(NewIndexedStringTableWriter())
+	ctx := NewEncodingContext(stringtable.NewIndexedStringTableWriter())
 {{- else }}
 	ctx := NewEncodingContext(nil)
 {{- end }}
@@ -297,7 +297,7 @@ func (target *{{ .Type.Name }}) MarshalBinaryTo(writer io.Writer) error {
 	// run a pre-pass to collect all strings into the string table and discard all writes to the main 
 	// buffer. Then, we write the string table, sorted by number of repeated uses (descending), to the 
 	// main buffer, and use the resulting table as part of the context for the main pass.
-	prepass := NewPrepassStringTableWriter()
+	prepass := stringtable.NewPrepassStringTableWriter()
 	prepassCtx := NewEncodingContextFromWriter(io.Discard, prepass)
 
 	e := target.MarshalBinaryWithContext(prepassCtx)

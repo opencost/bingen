@@ -6,9 +6,9 @@ import (
 	"io"
 	"text/template"
 
-	"github.com/opencost/bingen/pkg/generator/vars"
-	"github.com/opencost/bingen/pkg/meta"
-	"github.com/opencost/bingen/pkg/types"
+	"github.com/opencost/bingen/internal/generator/vars"
+	"github.com/opencost/bingen/internal/meta"
+	"github.com/opencost/bingen/internal/types"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )

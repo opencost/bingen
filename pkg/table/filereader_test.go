@@ -1,4 +1,4 @@
-package aliases
+package table
 
 import (
 	"os"
@@ -92,7 +92,7 @@ func TestFileStringTableReader_ZeroMaxBytes(t *testing.T) {
 	}
 
 	// Create reader with memoMaxBytes = 0 (no caching)
-	reader := NewFileStringTableReaderFrom(buf, t.TempDir(), 0)
+	reader := NewFileStringTableReaderFrom(buf, t.TempDir(), "bingen", 0)
 	if reader == nil {
 		t.Fatal("NewFileStringTableReaderFrom returned nil")
 	}

@@ -4,7 +4,7 @@ import (
 	"go/ast"
 	"testing"
 
-	"github.com/opencost/bingen/pkg/meta"
+	"github.com/opencost/bingen/internal/meta"
 )
 
 func TestDefinitionToAst(t *testing.T) {

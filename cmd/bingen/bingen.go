@@ -8,8 +8,8 @@ import (
 	"path"
 	"path/filepath"
 
-	"github.com/opencost/bingen/pkg/generator"
-	"github.com/opencost/bingen/pkg/types"
+	"github.com/opencost/bingen/internal/generator"
+	"github.com/opencost/bingen/internal/types"
 )
 
 const DefaultBufferPackage string = "github.com/opencost/bingen/pkg/util"
