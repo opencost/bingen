@@ -124,7 +124,10 @@ func NewFileStringTableReaderFrom(buffer *util.Buffer, dir string, filePrefix st
 
 // At returns the string from the internal file using the reference's offset and length.
 func (fstr *FileStringTableReader) At(index int) string {
-	if fstr == nil || fstr.f == nil {
+	if fstr == nil {
+		panic(fmt.Errorf("string table: failed to read file string table data"))
+	}
+	if fstr.f == nil {
 		panic(fmt.Errorf("%s: failed to read file string table data", fstr.filePrefix))
 	}
 	if index < 0 || index >= len(fstr.refs) {
