@@ -82,11 +82,13 @@ func NewLruStringBank(capacity int, evictionInterval time.Duration) StringBank {
 			// need to take the lock during eviction, ensure our
 			// reference is still valid first.
 			bank := bankInst.Value()
-			if bank != nil {
-				bank.lock.Lock()
-				evict(bank, capacity)
-				bank.lock.Unlock()
+			if bank == nil {
+				return
 			}
+
+			bank.lock.Lock()
+			evict(bank, capacity)
+			bank.lock.Unlock()
 		}
 	}()
 
