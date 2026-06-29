@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 
 	"github.com/opencost/bingen/internal/generator"
 	"github.com/opencost/bingen/internal/types"
@@ -16,7 +17,7 @@ const DefaultBufferPackage string = "github.com/opencost/bingen/pkg/util"
 
 var (
 	packageName = flag.String("package", "", "package name to generate binary codecs for")
-	buffer      = flag.String("buffer", "github.com/opencost/bingen/pkg/util", "[DEPRECATED] qualified package for the Buffer type")
+	buffer      = flag.String("buffer", DefaultBufferPackage, "[DEPRECATED] qualified package for the Buffer type")
 	version     = flag.Uint("version", 1, "the versioning to use for the binary generator")
 	//output      = flag.String("output", "", "output file name; default srcdir/<pkg>_codecs.go")
 )
@@ -59,14 +60,9 @@ func main() {
 		os.Exit(2)
 	}
 
-	bufferWasSet := false
-	flag.CommandLine.Visit(func(f *flag.Flag) {
-		if f.Name == "buffer" {
-			bufferWasSet = true
-		}
-	})
-	if bufferWasSet {
-		fmt.Fprintf(os.Stderr, "DEPRECATED use of the -buffer option. Supplied value of: %s is ignored.\nBingen always uses github.com/opencost/bingen/pkg/util/Buffer", *buffer)
+	// check to see if buffer is non-default before printing deprecation message.
+	if !strings.EqualFold(*buffer, DefaultBufferPackage) {
+		fmt.Fprintf(os.Stderr, "DEPRECATED use of the -buffer option. Supplied value of: %s is ignored.\nBingen always uses github.com/opencost/bingen/pkg/util", *buffer)
 	}
 
 	// We accept either one directory or a list of files. Which do we have?

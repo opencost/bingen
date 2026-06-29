@@ -6,7 +6,7 @@ import (
 
 const (
 	// BinaryTagStringTable is written and/or read prior to the existence of a string
-	// table (where each index is encoded as a string entry in the resource
+	// table.
 	BinaryTagStringTable string = "BGST"
 )
 

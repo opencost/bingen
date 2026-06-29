@@ -7,7 +7,7 @@ type stringBank struct {
 	m    map[string]string
 }
 
-// NewStringBank creates a set backed cache that allows for allocated strings existance to be
+// NewStringBank creates a set backed cache that allows for allocated strings existence to be
 // checked by temporary strings.
 func NewStringBank() StringBank {
 	return &stringBank{

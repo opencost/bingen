@@ -313,10 +313,10 @@ func TestConcurrentLoadOrStore(t *testing.T) {
 	const opsEach = 100
 
 	var wg sync.WaitGroup
-	for i := 0; i < goroutines; i++ {
+	for i := range goroutines {
 		g := i
 		wg.Go(func() {
-			for i := 0; i < opsEach; i++ {
+			for i := range opsEach {
 				key := fmt.Sprintf("k%d", (g*opsEach+i)%30)
 				lOrS(bank, key)
 			}

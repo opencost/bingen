@@ -27,6 +27,11 @@ var (
 )
 
 func UpdateStringBank(sb StringBank) {
+	// nil here represents a no-op string bank implementation
+	if sb == nil {
+		sb = NewNoOpStringBank()
+	}
+
 	lock.Lock()
 	defer lock.Unlock()
 
