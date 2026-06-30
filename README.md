@@ -18,6 +18,7 @@ $ go install github.com/opencost/bingen/cmd/bingen@latest
 For each project that leverages a bingen generation, you will need to include the `bingen` package as a dependency:
 ```bash
 $ go get github.com/opencost/bingen@latest
+```
 
 ### Usage
 ```
