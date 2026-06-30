@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/opencost/bingen/pkg/generator/vars"
-	"github.com/opencost/bingen/pkg/types"
+	"github.com/opencost/bingen/internal/generator/vars"
+	"github.com/opencost/bingen/internal/types"
 )
 
 // GeneratorContext is a stateful context that controls the flow of generation based on

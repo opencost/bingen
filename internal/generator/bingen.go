@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"go/format"
 	"os"
+	"path/filepath"
 	"sort"
 
-	"github.com/opencost/bingen/pkg/types"
+	importsfmt "golang.org/x/tools/imports"
+
+	"github.com/opencost/bingen/internal/types"
 )
 
 func Generate(dir string, pkg string, bufferImport string, tc types.TypeCollection) {
@@ -67,6 +70,8 @@ func Generate(dir string, pkg string, bufferImport string, tc types.TypeCollecti
 	// this should generally be left on.
 	const formatOn = true
 
+	outFile := filepath.Join(dir, fmt.Sprintf("%s_codecs.go", pkg))
+
 	var result []byte
 	if formatOn {
 		result, err = format.Source(out.Bytes())
@@ -74,11 +79,17 @@ func Generate(dir string, pkg string, bufferImport string, tc types.TypeCollecti
 			fmt.Println("Failed to format:", err)
 			return
 		}
+
+		result, err = importsfmt.Process(outFile, result, nil)
+		if err != nil {
+			fmt.Println("Failed to process imports:", err)
+			return
+		}
 	} else {
 		result = out.Bytes()
 	}
 
-	err = os.WriteFile(fmt.Sprintf("%s/%s_codecs.go", dir, pkg), result, 0600)
+	err = os.WriteFile(outFile, result, 0600)
 	if err != nil {
 		return
 	}

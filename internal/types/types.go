@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/opencost/bingen/pkg/meta"
+	"github.com/opencost/bingen/internal/meta"
 )
 
 //--------------------------------------------------------------------------

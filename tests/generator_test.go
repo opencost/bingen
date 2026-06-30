@@ -9,8 +9,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/opencost/bingen/pkg/generator"
-	"github.com/opencost/bingen/pkg/types"
+	"github.com/opencost/bingen/internal/generator"
+	"github.com/opencost/bingen/internal/types"
 )
 
 var (

@@ -6,7 +6,7 @@ import (
 	"go/parser"
 	"go/token"
 
-	"github.com/opencost/bingen/pkg/meta"
+	"github.com/opencost/bingen/internal/meta"
 )
 
 // ParseDefined turns the bingen type definition into a go ast.TypeSpec by generating the type
