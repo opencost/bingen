@@ -10,14 +10,14 @@ Using an ssh-agent and git, issue a global config update:
 $ git config --global url.git@github.com:.insteadOf https://github.com/
 ```
 
-Then get `bingen`:
-```bash
-$ go get github.com/opencost/bingen/cmd/bingen
-```
-
 Then install `bingen`:
 ```bash
-$ go install github.com/opencost/bingen/cmd/bingen
+$ go install github.com/opencost/bingen/cmd/bingen@latest 
+```
+
+For each project that leverages a bingen generation, you will need to include the `bingen` package as a dependency:
+```bash
+$ go get github.com/opencost/bingen@latest
 ```
 
 ### Usage
@@ -25,16 +25,11 @@ $ go install github.com/opencost/bingen/cmd/bingen
 Usage of bingen:
         bingen [flags] -package P [directory]
 Flags:
-  -buffer string
-        qualified package for the Buffer type (default "github.com/opencost/bingen/pkg/util")
   -package string
         package name to generate binary codecs for
   -version uint8
         the versioning to use for the default version set (default 1)
 ```
-
-##### Buffer
-The buffer flag should point to the location of the `util.Buffer` type. Since this is currently a private repository, it's best to just copy/paste [https://github.com/opencost/bingen/blob/main/pkg/util/buffer.go](https://github.com/opencost/bingen/blob/78b6ec35c5fc1050e2eb44f0d78ff658985413eb/pkg/util/buffer.go) into a `pkg/util` within your project. For instance, let's say you copy `buffer.go` to `pkg/util` in your project `github.com/bruh/gen-test`, then the buffer flag would be passed as `-buffer=github.com/bruh/gen-test/pkg/util`
 
 ##### Example
 The easiest way to use `bingen` is via `go:generate`. In a project that contains custom struct types you wish to generate `MarshalBinary` and `UnmarshalBinary` methods for, navigate to the target package. Assuming that the package `pkg/stuff` has 3 types you want to generate binary marshal/unmarshal for: `Foo`, `Bar`, and `Widget`, create a new source file in `pkg/stuff` with the following:
@@ -45,7 +40,7 @@ package stuff
 // @bingen:generate:Bar
 // @bingen:generate:Widget
 
-//go:generate bingen -package=stuff -version=1 -buffer=github.com/bruh/gen-test/pkg/util
+//go:generate bingen -package=stuff -version=1
 ```
 
 If you're using VSCode, a link will appear above `//go:generate ...`. Click the `run go generate ./...` option. This should run and create a `stuff_codecs.go` source file in the `pkg/stuff` directory. 
@@ -86,7 +81,7 @@ package stuff
 
 // @bingen:generate:Widget
 
-//go:generate bingen -package=stuff -version=1 -buffer=github.com/acme/widgets/pkg/util 
+//go:generate bingen -package=stuff -version=1
 ```
 
 Note that the `define` directive also implicitly imports the package, so you do not need to also include an `import` directive for the same package. To summarize, the `import` directive is used when you have a non-standard library type that implements `encoding.BinaryMarshaler` and `encoding.BinaryUnmarshaler`, and you want to use it as a field on a generated type. The `define` directive is used when you have an alias type that does not implement `encoding.BinaryMarshaler` and `encoding.BinaryUnmarshaler`, but you want to treat it as a first class citizen in the generated code with the underlying type's encoding/decoding behavior.
@@ -105,7 +100,7 @@ package stuff
 // @bingen:generate:Thing
 
 
-//go:generate bingen -package=stuff -version=2 -buffer=github.com/bruh/gen-test/pkg/util
+//go:generate bingen -package=stuff -version=2
 ```
 
 ##### String Table 
@@ -121,7 +116,7 @@ package stuff
 // @bingen:generate:Thing
 
 
-//go:generate bingen -package=stuff -version=3 -buffer=github.com/bruh/gen-test/pkg/util
+//go:generate bingen -package=stuff -version=3
 ```
 
 This option must be applied to a concrete type. 
@@ -156,8 +151,7 @@ package stuff
 // @bingen:generate:Thing
 // @bingen:end
 
-
-//go:generate bingen -package=stuff -version=3 -buffer=github.com/bruh/gen-test/pkg/util
+//go:generate bingen -package=stuff -version=3
 ```
 
 ##### Ignoring Fields
@@ -174,6 +168,8 @@ type Person struct {
 In this example, `FirstName` and `LastName` will both be marshalled and unmarshalled. `FullName` will be ignored.
 
 ##### Pre and Post Processing Types
+Note: Pre and Post Processing hooks are only supported on non-streaming unmarshalling.
+
 You can apply pre and post processing hooks to any generated type. These hooks often work well with ignored/transient fields to ensure that any data being encoded can be populated from the transient data. Likewise, you can also ensure that any transient fields are populated on decode as well. These hooks are enabled via the `generate` options:
 
 ```go
@@ -208,6 +204,8 @@ func postProcessPerson(p *Person) {
 ```
 
 ##### Migration of Types
+Note: Migration hooks are only supported on non-streaming unmarshalling.
+
 Similar to the pre and post processing hooks for generated types, you can also specify a migration hook. A migration hook is used when a higher versioned struct unmarshals from a lesser versioned encoding. The most common use of this feature would be to load older data, make a one time change, then store out the new result data. This hook is enabled via the `generate` options:
 
 ```go
@@ -237,7 +235,7 @@ package stuff
 
 // @bingen:generate[streamable]:Foo
 
-//go:generate bingen -package=stuff -version=1 -buffer=github.com/bruh/gen-test/pkg/util
+//go:generate bingen -package=stuff -version=1
 ```
 
 For each `streamable` type, bingen generates a `<Type>Stream` struct implementing the `BingenStream` interface. The interface exposes three methods: `Stream()`, which returns an `iter.Seq2[BingenFieldInfo, *BingenValue]` iterator; `Close()`, which releases the underlying `io.Reader`; and `Error()`, which returns any error that occurred during streaming and should be checked after iteration completes.
@@ -306,7 +304,7 @@ and in our `bingen.go` file, we setup a version set:
 // @bingen:generate:Container
 // @bingen:end
 
-//go:generate bingen -package=container -version=1 -buffer=github.com/container-example/pkg/util
+//go:generate bingen -package=container -version=1
 ```
 
 Now, if we generate our codec, we can write code that marshals a `Container` instance:
@@ -353,7 +351,7 @@ We then need to ensure our version set version is also updated:
 // @bingen:generate:Container
 // @bingen:end
 
-//go:generate bingen -package=container -version=2 -buffer=github.com/container-example/pkg/util
+//go:generate bingen -package=container -version=2
 ```
 
 Now if we were to load our file `container.bin`:
@@ -432,7 +430,7 @@ We advance the version set as well:
 // @bingen:generate:Container
 // @bingen:end
 
-//go:generate bingen -package=container -version=3 -buffer=github.com/container-example/pkg/util
+//go:generate bingen -package=container -version=3
 ```
 
 This does _NOT_ prevent us from loading the `container.bin` file that was generated using the v1 shema. Version 3 can unmarshal Version 2 and Version 1. 
