@@ -358,33 +358,28 @@ func (target *Container) MarshalBinaryWithContext(ctx *EncodingContext) (err err
 	buff.WriteUInt8(ContainerExampleCodecVersion) // version
 
 	if ctx.IsStringTable() {
-		a := ctx.Table.AddOrGet(target.Name)
-		buff.WriteInt(a) // write table index
+		v0 := ctx.Table.AddOrGet(target.Name)
+		buff.WriteInt(v0) // write table index
 	} else {
 		buff.WriteString(target.Name) // write string
 	}
-
 	if target.Children == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 		// --- [begin][write][slice]([]string) ---
 		buff.WriteInt(len(target.Children)) // slice length
-		for i := range target.Children {
+		for v1 := range target.Children {
 			if ctx.IsStringTable() {
-				b := ctx.Table.AddOrGet(target.Children[i])
-				buff.WriteInt(b) // write table index
+				v2 := ctx.Table.AddOrGet(target.Children[v1])
+				buff.WriteInt(v2) // write table index
 			} else {
-				buff.WriteString(target.Children[i]) // write string
+				buff.WriteString(target.Children[v1]) // write string
 			}
-
 		}
 		// --- [end][write][slice]([]string) ---
-
 	}
-
-	buff.WriteFloat64(target.Value) // write float64
+	buff.WriteFloat64(target.Value)
 
 	return nil
 }
@@ -440,43 +435,37 @@ func (target *Container) UnmarshalBinaryWithContext(ctx *DecodingContext) (err e
 		return fmt.Errorf("Invalid Version Unmarshalling Container. Expected %d or less, got %d", ContainerExampleCodecVersion, version)
 	}
 
-	var b string
+	var v0 string
 	if ctx.IsStringTable() {
-		c := buff.ReadInt() // read string index
-		b = ctx.Table.At(c)
+		v1 := buff.ReadInt() // read string index
+		v0 = ctx.Table.At(v1)
 	} else {
-		b = buff.ReadString() // read string
+		v0 = buff.ReadString() // read string
 	}
-	a := b
-	target.Name = a
-
+	target.Name = v0
+	var v2 []string
 	if buff.ReadUInt8() == uint8(0) {
-		target.Children = nil
+		v2 = nil
 	} else {
 		// --- [begin][read][slice]([]string) ---
-		e := buff.ReadInt() // slice len
-		d := make([]string, e)
-		for i := range e {
-			var f string
-			var h string
+		v3 := buff.ReadInt() // slice len
+		v2 = make([]string, v3)
+		for v4 := range v3 {
+			var v5 string
 			if ctx.IsStringTable() {
-				l := buff.ReadInt() // read string index
-				h = ctx.Table.At(l)
+				v6 := buff.ReadInt() // read string index
+				v5 = ctx.Table.At(v6)
 			} else {
-				h = buff.ReadString() // read string
+				v5 = buff.ReadString() // read string
 			}
-			g := h
-			f = g
-
-			d[i] = f
+			v2[v4] = v5
 		}
-		target.Children = d
 		// --- [end][read][slice]([]string) ---
-
 	}
-
-	m := buff.ReadFloat64() // read float64
-	target.Value = m
+	target.Children = v2
+	var v7 float64
+	v7 = buff.ReadFloat64()
+	target.Value = v7
 
 	return nil
 }
