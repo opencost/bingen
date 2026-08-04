@@ -23,7 +23,7 @@ func TestRoundTrip_Aliases(t *testing.T) {
 		t.Fatalf("MarshalBinary: %v", err)
 	}
 
-	decoded := &aliases.Parent{}
+	decoded := new(aliases.Parent)
 	if err := decoded.UnmarshalBinary(data); err != nil {
 		t.Fatalf("UnmarshalBinary: %v", err)
 	}
@@ -101,7 +101,7 @@ func TestRoundTrip_Opencost(t *testing.T) {
 		t.Fatalf("MarshalBinary: %v", err)
 	}
 
-	decoded := &opencost.AssetSet{}
+	decoded := new(opencost.AssetSet)
 	if err := decoded.UnmarshalBinary(b1); err != nil {
 		t.Fatalf("UnmarshalBinary: %v", err)
 	}

@@ -1,6 +1,7 @@
 package java
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -12,28 +13,41 @@ import (
 	"github.com/opencost/bingen/tests/timerec"
 )
 
-// TestRoundTrip_Decoder marshals a Container in go, has java decode and
-// re-encode it, and asserts the bytes are identical and the values survived.
-func TestRoundTrip_Decoder(t *testing.T) {
-	const decodeReencodeHarness = `import com.opencost.container.Container;
-import com.opencost.container.ContainerDecoder;
-import com.opencost.container.ContainerEncoder;
+// RoundTripJavaSourceFor generates a java program which will read a binary file from the first argument,
+// decode it into the proper type, then re-encode it back into binary and write it to the second argument.
+func RoundTripJavaSourceFor(baseJavaPackage, goPackage, typeName, harnessName string) string {
+	fullPkg := fmt.Sprintf("%s.%s", baseJavaPackage, goPackage)
+	encoder := fmt.Sprintf("%sEncoder", typeName)
+	decoder := fmt.Sprintf("%sDecoder", typeName)
+
+	return fmt.Sprintf(`import %s.%s;
+import %s.%s;
+import %s.%s;
 import com.bingen.DecodingContext;
 import com.bingen.EncodingContext;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-public final class DecodeReencodeMain {
+public final class %s {
     public static void main(String[] args) throws Exception {
         byte[] in = Files.readAllBytes(Path.of(args[0]));
-        Container c = ContainerDecoder.INSTANCE.decode(DecodingContext.fromBytes(in));
-        EncodingContext ctx = EncodingContext.create();
-        ContainerEncoder.INSTANCE.encode(c, ctx);
-        Files.write(Path.of(args[1]), ctx.toBytes());
+        %s c = %s.fromBytes(in);
+        Files.write(Path.of(args[1]), %s.toBytes(c));
     }
 }
-`
+`,
+		fullPkg, typeName,
+		fullPkg, decoder,
+		fullPkg, encoder,
+		harnessName,
+		typeName, decoder,
+		encoder,
+	)
+}
 
+// TestRoundTrip_Decoder marshals a Container in go, has java decode and
+// re-encode it, and asserts the bytes are identical and the values survived.
+func TestRoundTrip_Decoder(t *testing.T) {
 	const goPackage = "container"
 	const harnessName = "DecodeReencodeMain"
 
@@ -41,7 +55,7 @@ public final class DecodeReencodeMain {
 
 	javaMain := &javaSource{
 		FileName: harnessName,
-		Source:   decodeReencodeHarness,
+		Source:   RoundTripJavaSourceFor(BaseJavaPackage, goPackage, "Container", harnessName),
 	}
 
 	testRunner := newRoundTripTestBuilder[container.Container](goPackage, javaMain).
@@ -67,24 +81,6 @@ public final class DecodeReencodeMain {
 // go, has java decode + re-encode it through the TypeRegistry, and asserts the
 // bytes are identical and the concrete types survived.
 func TestRoundTripInterface_Shape(t *testing.T) {
-	const drawingReencodeHarness = `import com.opencost.shape.Drawing;
-import com.opencost.shape.DrawingDecoder;
-import com.opencost.shape.DrawingEncoder;
-import com.bingen.DecodingContext;
-import com.bingen.EncodingContext;
-import java.nio.file.Files;
-import java.nio.file.Path;
-
-public final class DrawingReencodeMain {
-    public static void main(String[] args) throws Exception {
-        byte[] in = Files.readAllBytes(Path.of(args[0]));
-        Drawing d = DrawingDecoder.INSTANCE.decode(DecodingContext.fromBytes(in));
-        EncodingContext ctx = EncodingContext.create();
-        DrawingEncoder.INSTANCE.encode(d, ctx);
-        Files.write(Path.of(args[1]), ctx.toBytes());
-    }
-}
-`
 	const goPackage = "shape"
 	const harnessName = "DrawingReencodeMain"
 
@@ -92,7 +88,7 @@ public final class DrawingReencodeMain {
 
 	javaMain := &javaSource{
 		FileName: harnessName,
-		Source:   drawingReencodeHarness,
+		Source:   RoundTripJavaSourceFor(BaseJavaPackage, goPackage, "Drawing", harnessName),
 	}
 	testRunner := newRoundTripTestBuilder[shape.Drawing](goPackage, javaMain).
 		WithAssertion(func(t *testing.T, t1 *shape.Drawing, t2 *shape.Drawing) {
@@ -133,21 +129,6 @@ public final class DrawingReencodeMain {
 // deduplicated into a BGST-prefixed table), has java decode + re-encode it, and
 // asserts the bytes are identical and the values survived.
 func TestRoundTrip_StringTable(t *testing.T) {
-	const docReencodeHarness = `import com.opencost.sttable.Doc;
-import com.opencost.sttable.DocDecoder;
-import com.opencost.sttable.DocEncoder;
-import java.nio.file.Files;
-import java.nio.file.Path;
-
-public final class DocReencodeMain {
-    public static void main(String[] args) throws Exception {
-        byte[] in = Files.readAllBytes(Path.of(args[0]));
-        Doc d = DocDecoder.fromBytes(in);
-        Files.write(Path.of(args[1]), DocEncoder.toBytes(d));
-    }
-}
-`
-
 	const goPackage = "sttable"
 	const harnessName = "DocReencodeMain"
 
@@ -155,7 +136,7 @@ public final class DocReencodeMain {
 
 	javaMain := &javaSource{
 		FileName: harnessName,
-		Source:   docReencodeHarness,
+		Source:   RoundTripJavaSourceFor(BaseJavaPackage, goPackage, "Doc", harnessName),
 	}
 	testRunner := newRoundTripTestBuilder[sttable.Doc](goPackage, javaMain).
 		WithAssertion(func(t *testing.T, t1 *sttable.Doc, t2 *sttable.Doc) {
@@ -191,21 +172,6 @@ public final class DocReencodeMain {
 // decode + re-encode it through GoTime, and asserts the bytes are identical and
 // the instant survived.
 func TestRoundTrip_Time(t *testing.T) {
-	const eventReencodeHarness = `import com.opencost.timerec.Event;
-import com.opencost.timerec.EventDecoder;
-import com.opencost.timerec.EventEncoder;
-import java.nio.file.Files;
-import java.nio.file.Path;
-
-public final class EventReencodeMain {
-    public static void main(String[] args) throws Exception {
-        byte[] in = Files.readAllBytes(Path.of(args[0]));
-        Event e = EventDecoder.fromBytes(in);
-        Files.write(Path.of(args[1]), EventEncoder.toBytes(e));
-    }
-}
-`
-
 	const goPackage = "timerec"
 	const harnessName = "EventReencodeMain"
 
@@ -213,7 +179,7 @@ public final class EventReencodeMain {
 
 	javaMain := &javaSource{
 		FileName: harnessName,
-		Source:   eventReencodeHarness,
+		Source:   RoundTripJavaSourceFor(BaseJavaPackage, goPackage, "Event", harnessName),
 	}
 
 	testRunner := newRoundTripTestBuilder[timerec.Event](goPackage, javaMain).
@@ -255,20 +221,6 @@ public final class EventReencodeMain {
 // (Tags = []string). The nil-flag byte must be read symmetrically or the
 // trailing Count field is corrupted.
 func TestRoundTrip_NilableAlias(t *testing.T) {
-	const holderReencodeHarness = `import com.opencost.aliasnil.Holder;
-import com.opencost.aliasnil.HolderDecoder;
-import com.opencost.aliasnil.HolderEncoder;
-import java.nio.file.Files;
-import java.nio.file.Path;
-
-public final class HolderReencodeMain {
-    public static void main(String[] args) throws Exception {
-        byte[] in = Files.readAllBytes(Path.of(args[0]));
-        Holder h = HolderDecoder.fromBytes(in);
-        Files.write(Path.of(args[1]), HolderEncoder.toBytes(h));
-    }
-}
-`
 	const goPackage = "aliasnil"
 	const harnessName = "HolderReencodeMain"
 
@@ -276,7 +228,7 @@ public final class HolderReencodeMain {
 
 	javaMain := &javaSource{
 		FileName: harnessName,
-		Source:   holderReencodeHarness,
+		Source:   RoundTripJavaSourceFor(BaseJavaPackage, goPackage, "Holder", harnessName),
 	}
 
 	testRunner := newRoundTripTestBuilder[aliasnil.Holder](goPackage, javaMain).
