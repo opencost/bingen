@@ -1,0 +1,73 @@
+{{/*
+	Unmarshaller method skeleton. The field-decoding body ({{ .Body }}) is
+	produced by the core Go backend (internal/generator/gobackend.go via
+	internal/generator/core), so the read* sub-templates that previously lived
+	here have been retired now that the streamer is also on the core.
+*/}}
+// UnmarshalBinary uses the data passed byte array to set all the internal properties of
+// the {{ .Type.Name }} type
+func (target *{{ .Type.Name }}) UnmarshalBinary(data []byte) error {
+	ctx := NewDecodingContextFromBytes(data)
+	defer ctx.Close()
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryFromReader uses the io.Reader data to set all the internal properties of
+// the {{ .Type.Name }} type
+func (target *{{ .Type.Name }}) UnmarshalBinaryFromReader(reader io.Reader) error {
+	ctx := NewDecodingContextFromReader(reader)
+	defer ctx.Close()
+
+	err := target.UnmarshalBinaryWithContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// UnmarshalBinaryWithContext uses the context containing a string table and binary buffer to set all the internal properties of
+// the {{ .Type.Name }} type
+func (target *{{ .Type.Name }}) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+	    if r := recover(); r != nil {
+	        if e, ok := r.(error); ok {
+	            err = e
+	        } else if s, ok := r.(string); ok {
+	            err = fmt.Errorf("unexpected panic: %s", s)
+	        } else {
+	            err = fmt.Errorf("unexpected panic: %+v", r)
+	        }
+	    }
+	}()
+
+	buff := ctx.Buffer
+	version := buff.ReadUInt8()
+
+	if version > {{ .Context.VersionSetConst }} {
+		return fmt.Errorf("Invalid Version Unmarshalling {{ .Type.Name }}. Expected %d or less, got %d", {{ .Context.VersionSetConst }}, version)
+	}
+
+	{{ .Body }}
+
+	{{ if .Context.IsMigration -}}
+	// execute migration func if version delta detected
+	if version != {{ .Context.VersionSetConst }} {
+		migrate{{ .Type.Name }}(target, version, {{ .Context.VersionSetConst }})
+	}
+	{{- end }}
+
+	{{ if .Context.IsPostProcess -}}
+	// execute post-processing func
+	postProcess{{ .Type.Name }}(target)
+	{{- end }}
+
+	return nil
+}

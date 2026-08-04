@@ -9,7 +9,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/opencost/bingen/internal/generator"
+	"github.com/opencost/bingen/internal/generator/golang"
+	javagen "github.com/opencost/bingen/internal/generator/java"
 	"github.com/opencost/bingen/internal/types"
 )
 
@@ -87,8 +88,30 @@ func runGenerator(dir string, pkg string) error {
 		return err
 	}
 
-	generator.Generate(dir, pkg, BinGenUtil, tc)
+	golang.Generate(dir, pkg, BinGenUtil, tc)
 	return nil
+}
+
+func runJavaGenerator(dir string, pkg string) error {
+	codecPath := filepath.Join(dir, "java")
+	_ = os.RemoveAll(codecPath)
+
+	tc, err := types.LoadTypes(dir, pkg, V)
+	if err != nil {
+		return err
+	}
+
+	conf, err := javagen.FromConfig(pkg, map[string]string{
+		javagen.OptBasePackage: "com.opencost",
+		javagen.OptOutputDir:   codecPath,
+	})
+	if err != nil {
+		return err
+	}
+
+	conf.GoPackage = pkg
+
+	return javagen.Generate(dir, tc, conf)
 }
 
 func TestGenerateAliasBinCodecs(t *testing.T) {
@@ -118,6 +141,11 @@ func TestGenerateOpencostBinCodecs(t *testing.T) {
 	td := getTestDir()
 
 	err := runGenerator(filepath.Join(td, "opencost"), "opencost")
+	if err != nil {
+		t.Errorf("\n%s", err)
+	}
+
+	err = runJavaGenerator(filepath.Join(td, "opencost"), "opencost")
 	if err != nil {
 		t.Errorf("\n%s", err)
 	}
