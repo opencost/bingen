@@ -1,0 +1,75 @@
+name: Dependabot auto-merge
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  approve-and-auto-merge:
+    # Enable only after branch protection and Actions permissions are configured.
+    if: github.repository == 'opencost/bingen' && vars.DEPENDABOT_AUTO_MERGE_ENABLED == 'true' && github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      # Do not check out or execute pull request code in this privileged workflow.
+      # fetch-metadata reads the first commit, so require exactly one commit.
+      - name: Verify Dependabot commit
+        id: commits
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          commits=$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/commits?per_page=100")
+          # GitHub-signed Dependabot commits use the web-flow committer.
+          if printf '%s' "$commits" | jq -e --arg head "$HEAD_SHA" '
+            add | length == 1 and .[0].sha == $head and
+            all(.[]; .author.id == 49699333 and .author.login == "dependabot[bot]" and
+              .committer.id == 19864447 and .committer.login == "web-flow" and
+              .commit.committer.email == "noreply@github.com" and
+              .commit.verification.verified == true and .commit.verification.reason == "valid")
+          ' > /dev/null; then
+            echo "verified=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Verify Dependabot metadata
+        if: steps.commits.outputs.verified == 'true'
+        id: metadata
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # The summary can be patch even if another dependency has no update type.
+      - name: Check every updated dependency
+        id: eligibility
+        env:
+          DEPENDENCIES: ${{ steps.metadata.outputs.updated-dependencies-json }}
+        run: |
+          if printf '%s' "$DEPENDENCIES" | jq -e '
+            type == "array" and length > 0 and
+            all(.[]; .updateType == "version-update:semver-patch")
+          ' > /dev/null; then
+            echo "eligible=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Approve patch update
+        if: steps.metadata.outputs.update-type == 'version-update:semver-patch' && steps.eligibility.outputs.eligible == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/pulls/${{ github.event.pull_request.number }}/reviews" \
+            -f event=APPROVE -f commit_id="$HEAD_SHA"
+
+      - name: Enable auto-merge for patch update
+        if: steps.metadata.outputs.update-type == 'version-update:semver-patch' && steps.eligibility.outputs.eligible == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: gh pr merge --auto --merge --match-head-commit "$HEAD_SHA" "$PR_URL"

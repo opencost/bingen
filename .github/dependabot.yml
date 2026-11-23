@@ -5,9 +5,37 @@ updates:
     directory: "/" # Location of package manifests
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+    groups:
+      golang-x-patch:
+        patterns:
+          - "golang.org/x/*"
+        update-types:
+          - "patch"
+      golang-x-minor:
+        patterns:
+          - "golang.org/x/*"
+        update-types:
+          - "minor"
 
   # Dependencies listed in .github/workflows/*.yaml
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+    groups:
+      actions-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "patch"
+      actions-minor:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"

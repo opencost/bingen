@@ -435,3 +435,16 @@ We advance the version set as well:
 
 This does _NOT_ prevent us from loading the `container.bin` file that was generated using the v1 shema. Version 3 can unmarshal Version 2 and Version 1. 
 
+# Dependency updates
+
+Dependabot checks Go modules and GitHub Actions weekly. Related updates are
+grouped by update type. Verified patch updates may be approved automatically
+and merged after the required checks and branch protection rules pass. Before
+enabling automation, enable auto-merge and allow GitHub Actions to create and
+approve pull requests in the repository settings. Branch protection must require
+the intended CI checks and an approval, and dismiss stale approvals when new
+commits are pushed. After configuring those settings, a maintainer can enable the
+automation by setting the repository Actions variable
+`DEPENDABOT_AUTO_MERGE_ENABLED` to `true`. Minor, major, and unclassified
+updates require human review. The separate Go version update workflow is not
+covered by this automation.
