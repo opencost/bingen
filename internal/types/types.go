@@ -59,6 +59,22 @@ var BasicTypes = []*BasicType{
 }
 
 //--------------------------------------------------------------------------
+//  Type Code Helpers
+//--------------------------------------------------------------------------
+
+// IsNumericalPrimitive returns true if the value is within the int -> float64 type
+// range
+func IsNumericalPrimitive(code uint8) bool {
+	return code > TypeBool && code < TypeString
+}
+
+// IsNonStringPrimitive returns true if the value is within the bool -> float64 type
+// range
+func IsNonStringPrimitive(code uint8) bool {
+	return code >= TypeBool && code < TypeString
+}
+
+//--------------------------------------------------------------------------
 //  AnnotatedTypeOpts
 //--------------------------------------------------------------------------
 

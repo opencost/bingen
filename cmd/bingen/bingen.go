@@ -9,18 +9,50 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/opencost/bingen/internal/generator"
+	"github.com/opencost/bingen/internal/generator/golang"
+	"github.com/opencost/bingen/internal/generator/java"
 	"github.com/opencost/bingen/internal/types"
 )
 
 const DefaultBufferPackage string = "github.com/opencost/bingen/pkg/util"
 
+// optionFlag collects repeatable -opt key=value language-specific options into
+// a map.
+type optionFlag map[string]string
+
+func (o optionFlag) String() string {
+	pairs := make([]string, 0, len(o))
+	for k, v := range o {
+		pairs = append(pairs, fmt.Sprintf("%s=%s", k, v))
+	}
+	return strings.Join(pairs, ",")
+}
+
+func (o optionFlag) Set(s string) error {
+	k, v, ok := strings.Cut(s, "=")
+	if !ok {
+		return fmt.Errorf("invalid -opt %q, expected key=value", s)
+	}
+	k = strings.TrimSpace(k)
+	if k == "" {
+		return fmt.Errorf("invalid -opt %q, empty key", s)
+	}
+	o[k] = strings.TrimSpace(v)
+	return nil
+}
+
 var (
 	packageName = flag.String("package", "", "package name to generate binary codecs for")
 	buffer      = flag.String("buffer", DefaultBufferPackage, "[DEPRECATED] qualified package for the Buffer type")
 	version     = flag.Uint("version", 1, "the versioning to use for the binary generator")
+	lang        = flag.String("lang", "go", "target language: go|java")
+	options     = optionFlag{}
 	//output      = flag.String("output", "", "output file name; default srcdir/<pkg>_codecs.go")
 )
+
+func init() {
+	flag.Var(options, "opt", "language-specific option key=value (repeatable)")
+}
 
 // Usage is a replacement usage function for the flags package.
 func Usage() {
@@ -79,10 +111,16 @@ func main() {
 		dir = filepath.Dir(args[0])
 	}
 
-	codecPath := path.Join(dir, fmt.Sprintf("%s_codecs.go", *packageName))
-	if fileExists(codecPath) {
-		if err := os.Remove(codecPath); err != nil {
-			log.Fatalf("failed to remove existing codec file %q: %v", codecPath, err)
+	targetLang := strings.ToLower(strings.TrimSpace(*lang))
+
+	// The go exporter overwrites a single <pkg>_codecs.go file; remove any stale
+	// copy up front. Other languages manage their own output layout.
+	if targetLang == "" || targetLang == "go" {
+		codecPath := path.Join(dir, fmt.Sprintf("%s_codecs.go", *packageName))
+		if fileExists(codecPath) {
+			if err := os.Remove(codecPath); err != nil {
+				log.Fatalf("failed to remove existing codec file %q: %v", codecPath, err)
+			}
 		}
 	}
 
@@ -93,5 +131,19 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Failed to parse @bingen annotations: %s", err)
 		return
 	}
-	generator.Generate(dir, *packageName, DefaultBufferPackage, tc)
+
+	switch targetLang {
+	case "", "go":
+		golang.Generate(dir, *packageName, DefaultBufferPackage, tc)
+	case "java":
+		opts, err := java.FromConfig(*packageName, options)
+		if err != nil {
+			log.Fatalf("%s", err)
+		}
+		if err := java.Generate(dir, tc, opts); err != nil {
+			log.Fatalf("%s", err)
+		}
+	default:
+		log.Fatalf("unsupported -lang %q (want go|java)", *lang)
+	}
 }

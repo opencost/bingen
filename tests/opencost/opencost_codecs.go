@@ -413,155 +413,115 @@ func (target *Allocation) MarshalBinaryWithContext(ctx *EncodingContext) (err er
 	buff.WriteUInt8(AllocationCodecVersion) // version
 
 	if ctx.IsStringTable() {
-		a := ctx.Table.AddOrGet(target.Name)
-		buff.WriteInt(a) // write table index
+		v0 := ctx.Table.AddOrGet(target.Name)
+		buff.WriteInt(v0) // write table index
 	} else {
 		buff.WriteString(target.Name) // write string
 	}
-
 	if target.Properties == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 		// --- [begin][write][struct](AllocationProperties) ---
 		buff.WriteInt(0) // [compatibility, unused]
-		errA := target.Properties.MarshalBinaryWithContext(ctx)
-		if errA != nil {
-			return errA
+		v1 := target.Properties.MarshalBinaryWithContext(ctx)
+		if v1 != nil {
+			return v1
 		}
 		// --- [end][write][struct](AllocationProperties) ---
-
 	}
-
 	// --- [begin][write][struct](Window) ---
 	buff.WriteInt(0) // [compatibility, unused]
-	errB := target.Window.MarshalBinaryWithContext(ctx)
-	if errB != nil {
-		return errB
+	v2 := target.Window.MarshalBinaryWithContext(ctx)
+	if v2 != nil {
+		return v2
 	}
 	// --- [end][write][struct](Window) ---
-
 	// --- [begin][write][reference](time.Time) ---
-	b, errC := target.Start.MarshalBinary()
-	if errC != nil {
-		return errC
+	v3, v4 := target.Start.MarshalBinary()
+	if v4 != nil {
+		return v4
 	}
-	buff.WriteInt(len(b))
-	buff.WriteBytes(b)
+	buff.WriteInt(len(v3))
+	buff.WriteBytes(v3)
 	// --- [end][write][reference](time.Time) ---
-
 	// --- [begin][write][reference](time.Time) ---
-	c, errD := target.End.MarshalBinary()
-	if errD != nil {
-		return errD
+	v5, v6 := target.End.MarshalBinary()
+	if v6 != nil {
+		return v6
 	}
-	buff.WriteInt(len(c))
-	buff.WriteBytes(c)
+	buff.WriteInt(len(v5))
+	buff.WriteBytes(v5)
 	// --- [end][write][reference](time.Time) ---
-
-	buff.WriteFloat64(target.CPUCoreHours) // write float64
-
-	buff.WriteFloat64(target.CPUCoreRequestAverage) // write float64
-
-	buff.WriteFloat64(target.CPUCoreUsageAverage) // write float64
-
-	buff.WriteFloat64(target.CPUCost) // write float64
-
-	buff.WriteFloat64(target.CPUCostAdjustment) // write float64
-
-	buff.WriteFloat64(target.GPUHours) // write float64
-
-	buff.WriteFloat64(target.GPUCost) // write float64
-
-	buff.WriteFloat64(target.GPUCostAdjustment) // write float64
-
-	buff.WriteFloat64(target.NetworkTransferBytes) // write float64
-
-	buff.WriteFloat64(target.NetworkReceiveBytes) // write float64
-
-	buff.WriteFloat64(target.NetworkCost) // write float64
-
-	buff.WriteFloat64(target.NetworkCostAdjustment) // write float64
-
-	buff.WriteFloat64(target.LoadBalancerCost) // write float64
-
-	buff.WriteFloat64(target.LoadBalancerCostAdjustment) // write float64
-
+	buff.WriteFloat64(target.CPUCoreHours)
+	buff.WriteFloat64(target.CPUCoreRequestAverage)
+	buff.WriteFloat64(target.CPUCoreUsageAverage)
+	buff.WriteFloat64(target.CPUCost)
+	buff.WriteFloat64(target.CPUCostAdjustment)
+	buff.WriteFloat64(target.GPUHours)
+	buff.WriteFloat64(target.GPUCost)
+	buff.WriteFloat64(target.GPUCostAdjustment)
+	buff.WriteFloat64(target.NetworkTransferBytes)
+	buff.WriteFloat64(target.NetworkReceiveBytes)
+	buff.WriteFloat64(target.NetworkCost)
+	buff.WriteFloat64(target.NetworkCostAdjustment)
+	buff.WriteFloat64(target.LoadBalancerCost)
+	buff.WriteFloat64(target.LoadBalancerCostAdjustment)
 	// --- [begin][write][alias](PVAllocations) ---
 	if map[PVKey]*PVAllocation(target.PVs) == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 		// --- [begin][write][map](map[PVKey]*PVAllocation) ---
 		buff.WriteInt(len(map[PVKey]*PVAllocation(target.PVs))) // map length
-		for v, z := range map[PVKey]*PVAllocation(target.PVs) {
-
+		for v7, v8 := range map[PVKey]*PVAllocation(target.PVs) {
 			// --- [begin][write][struct](PVKey) ---
 			buff.WriteInt(0) // [compatibility, unused]
-			errE := v.MarshalBinaryWithContext(ctx)
-			if errE != nil {
-				return errE
+			v9 := v7.MarshalBinaryWithContext(ctx)
+			if v9 != nil {
+				return v9
 			}
 			// --- [end][write][struct](PVKey) ---
-
-			if z == nil {
+			if v8 == nil {
 				buff.WriteUInt8(uint8(0)) // write nil byte
 			} else {
 				buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 				// --- [begin][write][struct](PVAllocation) ---
 				buff.WriteInt(0) // [compatibility, unused]
-				errF := z.MarshalBinaryWithContext(ctx)
-				if errF != nil {
-					return errF
+				v10 := v8.MarshalBinaryWithContext(ctx)
+				if v10 != nil {
+					return v10
 				}
 				// --- [end][write][struct](PVAllocation) ---
-
 			}
 		}
 		// --- [end][write][map](map[PVKey]*PVAllocation) ---
-
 	}
 	// --- [end][write][alias](PVAllocations) ---
-
-	buff.WriteFloat64(target.PVCostAdjustment) // write float64
-
-	buff.WriteFloat64(target.RAMByteHours) // write float64
-
-	buff.WriteFloat64(target.RAMBytesRequestAverage) // write float64
-
-	buff.WriteFloat64(target.RAMBytesUsageAverage) // write float64
-
-	buff.WriteFloat64(target.RAMCost) // write float64
-
-	buff.WriteFloat64(target.RAMCostAdjustment) // write float64
-
-	buff.WriteFloat64(target.SharedCost) // write float64
-
-	buff.WriteFloat64(target.ExternalCost) // write float64
-
+	buff.WriteFloat64(target.PVCostAdjustment)
+	buff.WriteFloat64(target.RAMByteHours)
+	buff.WriteFloat64(target.RAMBytesRequestAverage)
+	buff.WriteFloat64(target.RAMBytesUsageAverage)
+	buff.WriteFloat64(target.RAMCost)
+	buff.WriteFloat64(target.RAMCostAdjustment)
+	buff.WriteFloat64(target.SharedCost)
+	buff.WriteFloat64(target.ExternalCost)
 	if target.RawAllocationOnly == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 		// --- [begin][write][struct](RawAllocationOnlyData) ---
 		buff.WriteInt(0) // [compatibility, unused]
-		errG := target.RawAllocationOnly.MarshalBinaryWithContext(ctx)
-		if errG != nil {
-			return errG
+		v11 := target.RawAllocationOnly.MarshalBinaryWithContext(ctx)
+		if v11 != nil {
+			return v11
 		}
 		// --- [end][write][struct](RawAllocationOnlyData) ---
-
 	}
-
-	buff.WriteInt(target.TestProperty) // write int
-
+	buff.WriteInt(target.TestProperty)
 	if ctx.IsStringTable() {
-		d := ctx.Table.AddOrGet(target.TestStr)
-		buff.WriteInt(d) // write table index
+		v12 := ctx.Table.AddOrGet(target.TestStr)
+		buff.WriteInt(v12) // write table index
 	} else {
 		buff.WriteString(target.TestStr) // write string
 	}
@@ -620,216 +580,204 @@ func (target *Allocation) UnmarshalBinaryWithContext(ctx *DecodingContext) (err 
 		return fmt.Errorf("Invalid Version Unmarshalling Allocation. Expected %d or less, got %d", AllocationCodecVersion, version)
 	}
 
-	var b string
+	var v0 string
 	if ctx.IsStringTable() {
-		c := buff.ReadInt() // read string index
-		b = ctx.Table.At(c)
+		v1 := buff.ReadInt() // read string index
+		v0 = ctx.Table.At(v1)
 	} else {
-		b = buff.ReadString() // read string
+		v0 = buff.ReadString() // read string
 	}
-	a := b
-	target.Name = a
-
+	target.Name = v0
+	var v2 *AllocationProperties
 	if buff.ReadUInt8() == uint8(0) {
-		target.Properties = nil
+		v2 = nil
 	} else {
-
 		// --- [begin][read][struct](AllocationProperties) ---
-		d := new(AllocationProperties)
+		v3 := new(AllocationProperties)
 		buff.ReadInt() // [compatibility, unused]
-		errA := d.UnmarshalBinaryWithContext(ctx)
-		if errA != nil {
-			return errA
+		v4 := v3.UnmarshalBinaryWithContext(ctx)
+		if v4 != nil {
+			return v4
 		}
-		target.Properties = d
+		v2 = v3
 		// --- [end][read][struct](AllocationProperties) ---
-
 	}
-
+	target.Properties = v2
+	var v5 Window
 	// --- [begin][read][struct](Window) ---
-	e := new(Window)
+	v6 := new(Window)
 	buff.ReadInt() // [compatibility, unused]
-	errB := e.UnmarshalBinaryWithContext(ctx)
-	if errB != nil {
-		return errB
+	v7 := v6.UnmarshalBinaryWithContext(ctx)
+	if v7 != nil {
+		return v7
 	}
-	target.Window = *e
+	v5 = *v6
 	// --- [end][read][struct](Window) ---
-
+	target.Window = v5
+	var v8 time.Time
 	// --- [begin][read][reference](time.Time) ---
-	f := new(time.Time)
-	g := buff.ReadInt() // byte array length
-	h := buff.ReadBytes(g)
-	errC := f.UnmarshalBinary(h)
-	if errC != nil {
-		return errC
+	v9 := new(time.Time)
+	v10 := buff.ReadInt() // byte array length
+	v11 := buff.ReadBytes(v10)
+	v12 := v9.UnmarshalBinary(v11)
+	if v12 != nil {
+		return v12
 	}
-	target.Start = *f
+	v8 = *v9
 	// --- [end][read][reference](time.Time) ---
-
+	target.Start = v8
+	var v13 time.Time
 	// --- [begin][read][reference](time.Time) ---
-	l := new(time.Time)
-	m := buff.ReadInt() // byte array length
-	n := buff.ReadBytes(m)
-	errD := l.UnmarshalBinary(n)
-	if errD != nil {
-		return errD
+	v14 := new(time.Time)
+	v15 := buff.ReadInt() // byte array length
+	v16 := buff.ReadBytes(v15)
+	v17 := v14.UnmarshalBinary(v16)
+	if v17 != nil {
+		return v17
 	}
-	target.End = *l
+	v13 = *v14
 	// --- [end][read][reference](time.Time) ---
-
-	o := buff.ReadFloat64() // read float64
-	target.CPUCoreHours = o
-
-	p := buff.ReadFloat64() // read float64
-	target.CPUCoreRequestAverage = p
-
-	q := buff.ReadFloat64() // read float64
-	target.CPUCoreUsageAverage = q
-
-	r := buff.ReadFloat64() // read float64
-	target.CPUCost = r
-
-	s := buff.ReadFloat64() // read float64
-	target.CPUCostAdjustment = s
-
-	t := buff.ReadFloat64() // read float64
-	target.GPUHours = t
-
-	u := buff.ReadFloat64() // read float64
-	target.GPUCost = u
-
-	w := buff.ReadFloat64() // read float64
-	target.GPUCostAdjustment = w
-
-	x := buff.ReadFloat64() // read float64
-	target.NetworkTransferBytes = x
-
-	y := buff.ReadFloat64() // read float64
-	target.NetworkReceiveBytes = y
-
-	aa := buff.ReadFloat64() // read float64
-	target.NetworkCost = aa
-
-	bb := buff.ReadFloat64() // read float64
-	target.NetworkCostAdjustment = bb
-
-	cc := buff.ReadFloat64() // read float64
-	target.LoadBalancerCost = cc
-
-	dd := buff.ReadFloat64() // read float64
-	target.LoadBalancerCostAdjustment = dd
-
+	target.End = v13
+	var v18 float64
+	v18 = buff.ReadFloat64()
+	target.CPUCoreHours = v18
+	var v19 float64
+	v19 = buff.ReadFloat64()
+	target.CPUCoreRequestAverage = v19
+	var v20 float64
+	v20 = buff.ReadFloat64()
+	target.CPUCoreUsageAverage = v20
+	var v21 float64
+	v21 = buff.ReadFloat64()
+	target.CPUCost = v21
+	var v22 float64
+	v22 = buff.ReadFloat64()
+	target.CPUCostAdjustment = v22
+	var v23 float64
+	v23 = buff.ReadFloat64()
+	target.GPUHours = v23
+	var v24 float64
+	v24 = buff.ReadFloat64()
+	target.GPUCost = v24
+	var v25 float64
+	v25 = buff.ReadFloat64()
+	target.GPUCostAdjustment = v25
+	var v26 float64
+	v26 = buff.ReadFloat64()
+	target.NetworkTransferBytes = v26
+	var v27 float64
+	v27 = buff.ReadFloat64()
+	target.NetworkReceiveBytes = v27
+	var v28 float64
+	v28 = buff.ReadFloat64()
+	target.NetworkCost = v28
+	var v29 float64
+	v29 = buff.ReadFloat64()
+	target.NetworkCostAdjustment = v29
+	var v30 float64
+	v30 = buff.ReadFloat64()
+	target.LoadBalancerCost = v30
+	var v31 float64
+	v31 = buff.ReadFloat64()
+	target.LoadBalancerCostAdjustment = v31
+	var v32 PVAllocations
 	// --- [begin][read][alias](PVAllocations) ---
-	var ee map[PVKey]*PVAllocation
+	var v33 map[PVKey]*PVAllocation
 	if buff.ReadUInt8() == uint8(0) {
-		ee = nil
+		v33 = nil
 	} else {
 		// --- [begin][read][map](map[PVKey]*PVAllocation) ---
-		gg := buff.ReadInt() // map len
-		ff := make(map[PVKey]*PVAllocation, gg)
-		for range gg {
-
+		v34 := buff.ReadInt() // map len
+		v33 = make(map[PVKey]*PVAllocation, v34)
+		for range v34 {
+			var v35 PVKey
 			// --- [begin][read][struct](PVKey) ---
-			hh := new(PVKey)
+			v36 := new(PVKey)
 			buff.ReadInt() // [compatibility, unused]
-			errE := hh.UnmarshalBinaryWithContext(ctx)
-			if errE != nil {
-				return errE
+			v37 := v36.UnmarshalBinaryWithContext(ctx)
+			if v37 != nil {
+				return v37
 			}
-			v := *hh
+			v35 = *v36
 			// --- [end][read][struct](PVKey) ---
-
-			var z *PVAllocation
+			var v38 *PVAllocation
 			if buff.ReadUInt8() == uint8(0) {
-				z = nil
+				v38 = nil
 			} else {
-
 				// --- [begin][read][struct](PVAllocation) ---
-				ll := new(PVAllocation)
+				v39 := new(PVAllocation)
 				buff.ReadInt() // [compatibility, unused]
-				errF := ll.UnmarshalBinaryWithContext(ctx)
-				if errF != nil {
-					return errF
+				v40 := v39.UnmarshalBinaryWithContext(ctx)
+				if v40 != nil {
+					return v40
 				}
-				z = ll
+				v38 = v39
 				// --- [end][read][struct](PVAllocation) ---
-
 			}
-			ff[v] = z
+			v33[v35] = v38
 		}
-		ee = ff
 		// --- [end][read][map](map[PVKey]*PVAllocation) ---
-
 	}
-
-	target.PVs = PVAllocations(ee)
+	v32 = PVAllocations(v33)
 	// --- [end][read][alias](PVAllocations) ---
-
-	mm := buff.ReadFloat64() // read float64
-	target.PVCostAdjustment = mm
-
-	nn := buff.ReadFloat64() // read float64
-	target.RAMByteHours = nn
-
-	oo := buff.ReadFloat64() // read float64
-	target.RAMBytesRequestAverage = oo
-
-	pp := buff.ReadFloat64() // read float64
-	target.RAMBytesUsageAverage = pp
-
-	qq := buff.ReadFloat64() // read float64
-	target.RAMCost = qq
-
-	rr := buff.ReadFloat64() // read float64
-	target.RAMCostAdjustment = rr
-
-	ss := buff.ReadFloat64() // read float64
-	target.SharedCost = ss
-
-	tt := buff.ReadFloat64() // read float64
-	target.ExternalCost = tt
-
+	target.PVs = v32
+	var v41 float64
+	v41 = buff.ReadFloat64()
+	target.PVCostAdjustment = v41
+	var v42 float64
+	v42 = buff.ReadFloat64()
+	target.RAMByteHours = v42
+	var v43 float64
+	v43 = buff.ReadFloat64()
+	target.RAMBytesRequestAverage = v43
+	var v44 float64
+	v44 = buff.ReadFloat64()
+	target.RAMBytesUsageAverage = v44
+	var v45 float64
+	v45 = buff.ReadFloat64()
+	target.RAMCost = v45
+	var v46 float64
+	v46 = buff.ReadFloat64()
+	target.RAMCostAdjustment = v46
+	var v47 float64
+	v47 = buff.ReadFloat64()
+	target.SharedCost = v47
+	var v48 float64
+	v48 = buff.ReadFloat64()
+	target.ExternalCost = v48
+	var v49 *RawAllocationOnlyData
 	if buff.ReadUInt8() == uint8(0) {
-		target.RawAllocationOnly = nil
+		v49 = nil
 	} else {
-
 		// --- [begin][read][struct](RawAllocationOnlyData) ---
-		uu := new(RawAllocationOnlyData)
+		v50 := new(RawAllocationOnlyData)
 		buff.ReadInt() // [compatibility, unused]
-		errG := uu.UnmarshalBinaryWithContext(ctx)
-		if errG != nil {
-			return errG
+		v51 := v50.UnmarshalBinaryWithContext(ctx)
+		if v51 != nil {
+			return v51
 		}
-		target.RawAllocationOnly = uu
+		v49 = v50
 		// --- [end][read][struct](RawAllocationOnlyData) ---
-
 	}
-
-	// field version check
+	target.RawAllocationOnly = v49
 	if uint8(16) <= version {
-
-		ww := buff.ReadInt() // read int
-		target.TestProperty = ww
-
+		var v52 int
+		v52 = buff.ReadInt()
+		target.TestProperty = v52
 	} else {
-		target.TestProperty = int(0) // default
+		target.TestProperty = int(0)
 	}
-	// field version check
 	if uint8(16) <= version {
-
-		var yy string
+		var v53 string
 		if ctx.IsStringTable() {
-			aaa := buff.ReadInt() // read string index
-			yy = ctx.Table.At(aaa)
+			v54 := buff.ReadInt() // read string index
+			v53 = ctx.Table.At(v54)
 		} else {
-			yy = buff.ReadString() // read string
+			v53 = buff.ReadString() // read string
 		}
-		xx := yy
-		target.TestStr = xx
-
+		target.TestStr = v53
 	} else {
-		target.TestStr = "test" // default
+		target.TestStr = "test"
 	}
 
 	return nil
@@ -883,136 +831,115 @@ func (target *AllocationProperties) MarshalBinaryWithContext(ctx *EncodingContex
 	buff.WriteUInt8(AllocationCodecVersion) // version
 
 	if ctx.IsStringTable() {
-		a := ctx.Table.AddOrGet(target.Cluster)
-		buff.WriteInt(a) // write table index
+		v0 := ctx.Table.AddOrGet(target.Cluster)
+		buff.WriteInt(v0) // write table index
 	} else {
 		buff.WriteString(target.Cluster) // write string
 	}
-
 	if ctx.IsStringTable() {
-		b := ctx.Table.AddOrGet(target.Node)
-		buff.WriteInt(b) // write table index
+		v1 := ctx.Table.AddOrGet(target.Node)
+		buff.WriteInt(v1) // write table index
 	} else {
 		buff.WriteString(target.Node) // write string
 	}
-
 	if ctx.IsStringTable() {
-		c := ctx.Table.AddOrGet(target.Container)
-		buff.WriteInt(c) // write table index
+		v2 := ctx.Table.AddOrGet(target.Container)
+		buff.WriteInt(v2) // write table index
 	} else {
 		buff.WriteString(target.Container) // write string
 	}
-
 	if ctx.IsStringTable() {
-		d := ctx.Table.AddOrGet(target.Controller)
-		buff.WriteInt(d) // write table index
+		v3 := ctx.Table.AddOrGet(target.Controller)
+		buff.WriteInt(v3) // write table index
 	} else {
 		buff.WriteString(target.Controller) // write string
 	}
-
 	if ctx.IsStringTable() {
-		e := ctx.Table.AddOrGet(target.ControllerKind)
-		buff.WriteInt(e) // write table index
+		v4 := ctx.Table.AddOrGet(target.ControllerKind)
+		buff.WriteInt(v4) // write table index
 	} else {
 		buff.WriteString(target.ControllerKind) // write string
 	}
-
 	if ctx.IsStringTable() {
-		f := ctx.Table.AddOrGet(target.Namespace)
-		buff.WriteInt(f) // write table index
+		v5 := ctx.Table.AddOrGet(target.Namespace)
+		buff.WriteInt(v5) // write table index
 	} else {
 		buff.WriteString(target.Namespace) // write string
 	}
-
 	if ctx.IsStringTable() {
-		g := ctx.Table.AddOrGet(target.Pod)
-		buff.WriteInt(g) // write table index
+		v6 := ctx.Table.AddOrGet(target.Pod)
+		buff.WriteInt(v6) // write table index
 	} else {
 		buff.WriteString(target.Pod) // write string
 	}
-
 	if target.Services == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 		// --- [begin][write][slice]([]string) ---
 		buff.WriteInt(len(target.Services)) // slice length
-		for i := range target.Services {
+		for v7 := range target.Services {
 			if ctx.IsStringTable() {
-				h := ctx.Table.AddOrGet(target.Services[i])
-				buff.WriteInt(h) // write table index
+				v8 := ctx.Table.AddOrGet(target.Services[v7])
+				buff.WriteInt(v8) // write table index
 			} else {
-				buff.WriteString(target.Services[i]) // write string
+				buff.WriteString(target.Services[v7]) // write string
 			}
-
 		}
 		// --- [end][write][slice]([]string) ---
-
 	}
-
 	if ctx.IsStringTable() {
-		l := ctx.Table.AddOrGet(target.ProviderID)
-		buff.WriteInt(l) // write table index
+		v9 := ctx.Table.AddOrGet(target.ProviderID)
+		buff.WriteInt(v9) // write table index
 	} else {
 		buff.WriteString(target.ProviderID) // write string
 	}
-
 	// --- [begin][write][alias](AllocationLabels) ---
 	if map[string]string(target.Labels) == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 		// --- [begin][write][map](map[string]string) ---
 		buff.WriteInt(len(map[string]string(target.Labels))) // map length
-		for v, z := range map[string]string(target.Labels) {
+		for v10, v11 := range map[string]string(target.Labels) {
 			if ctx.IsStringTable() {
-				m := ctx.Table.AddOrGet(v)
-				buff.WriteInt(m) // write table index
+				v12 := ctx.Table.AddOrGet(v10)
+				buff.WriteInt(v12) // write table index
 			} else {
-				buff.WriteString(v) // write string
+				buff.WriteString(v10) // write string
 			}
-
 			if ctx.IsStringTable() {
-				n := ctx.Table.AddOrGet(z)
-				buff.WriteInt(n) // write table index
+				v13 := ctx.Table.AddOrGet(v11)
+				buff.WriteInt(v13) // write table index
 			} else {
-				buff.WriteString(z) // write string
+				buff.WriteString(v11) // write string
 			}
-
 		}
 		// --- [end][write][map](map[string]string) ---
-
 	}
 	// --- [end][write][alias](AllocationLabels) ---
-
 	// --- [begin][write][alias](AllocationAnnotations) ---
 	if map[string]string(target.Annotations) == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 		// --- [begin][write][map](map[string]string) ---
 		buff.WriteInt(len(map[string]string(target.Annotations))) // map length
-		for vv, zz := range map[string]string(target.Annotations) {
+		for v14, v15 := range map[string]string(target.Annotations) {
 			if ctx.IsStringTable() {
-				o := ctx.Table.AddOrGet(vv)
-				buff.WriteInt(o) // write table index
+				v16 := ctx.Table.AddOrGet(v14)
+				buff.WriteInt(v16) // write table index
 			} else {
-				buff.WriteString(vv) // write string
+				buff.WriteString(v14) // write string
 			}
-
 			if ctx.IsStringTable() {
-				p := ctx.Table.AddOrGet(zz)
-				buff.WriteInt(p) // write table index
+				v17 := ctx.Table.AddOrGet(v15)
+				buff.WriteInt(v17) // write table index
 			} else {
-				buff.WriteString(zz) // write string
+				buff.WriteString(v15) // write string
 			}
-
 		}
 		// --- [end][write][map](map[string]string) ---
-
 	}
 	// --- [end][write][alias](AllocationAnnotations) ---
 
@@ -1070,192 +997,152 @@ func (target *AllocationProperties) UnmarshalBinaryWithContext(ctx *DecodingCont
 		return fmt.Errorf("Invalid Version Unmarshalling AllocationProperties. Expected %d or less, got %d", AllocationCodecVersion, version)
 	}
 
-	var b string
+	var v0 string
 	if ctx.IsStringTable() {
-		c := buff.ReadInt() // read string index
-		b = ctx.Table.At(c)
+		v1 := buff.ReadInt() // read string index
+		v0 = ctx.Table.At(v1)
 	} else {
-		b = buff.ReadString() // read string
+		v0 = buff.ReadString() // read string
 	}
-	a := b
-	target.Cluster = a
-
-	var e string
+	target.Cluster = v0
+	var v2 string
 	if ctx.IsStringTable() {
-		f := buff.ReadInt() // read string index
-		e = ctx.Table.At(f)
+		v3 := buff.ReadInt() // read string index
+		v2 = ctx.Table.At(v3)
 	} else {
-		e = buff.ReadString() // read string
+		v2 = buff.ReadString() // read string
 	}
-	d := e
-	target.Node = d
-
-	var h string
+	target.Node = v2
+	var v4 string
 	if ctx.IsStringTable() {
-		l := buff.ReadInt() // read string index
-		h = ctx.Table.At(l)
+		v5 := buff.ReadInt() // read string index
+		v4 = ctx.Table.At(v5)
 	} else {
-		h = buff.ReadString() // read string
+		v4 = buff.ReadString() // read string
 	}
-	g := h
-	target.Container = g
-
-	var n string
+	target.Container = v4
+	var v6 string
 	if ctx.IsStringTable() {
-		o := buff.ReadInt() // read string index
-		n = ctx.Table.At(o)
+		v7 := buff.ReadInt() // read string index
+		v6 = ctx.Table.At(v7)
 	} else {
-		n = buff.ReadString() // read string
+		v6 = buff.ReadString() // read string
 	}
-	m := n
-	target.Controller = m
-
-	var q string
+	target.Controller = v6
+	var v8 string
 	if ctx.IsStringTable() {
-		r := buff.ReadInt() // read string index
-		q = ctx.Table.At(r)
+		v9 := buff.ReadInt() // read string index
+		v8 = ctx.Table.At(v9)
 	} else {
-		q = buff.ReadString() // read string
+		v8 = buff.ReadString() // read string
 	}
-	p := q
-	target.ControllerKind = p
-
-	var t string
+	target.ControllerKind = v8
+	var v10 string
 	if ctx.IsStringTable() {
-		u := buff.ReadInt() // read string index
-		t = ctx.Table.At(u)
+		v11 := buff.ReadInt() // read string index
+		v10 = ctx.Table.At(v11)
 	} else {
-		t = buff.ReadString() // read string
+		v10 = buff.ReadString() // read string
 	}
-	s := t
-	target.Namespace = s
-
-	var x string
+	target.Namespace = v10
+	var v12 string
 	if ctx.IsStringTable() {
-		y := buff.ReadInt() // read string index
-		x = ctx.Table.At(y)
+		v13 := buff.ReadInt() // read string index
+		v12 = ctx.Table.At(v13)
 	} else {
-		x = buff.ReadString() // read string
+		v12 = buff.ReadString() // read string
 	}
-	w := x
-	target.Pod = w
-
+	target.Pod = v12
+	var v14 []string
 	if buff.ReadUInt8() == uint8(0) {
-		target.Services = nil
+		v14 = nil
 	} else {
 		// --- [begin][read][slice]([]string) ---
-		bb := buff.ReadInt() // slice len
-		aa := make([]string, bb)
-		for i := range bb {
-			var cc string
-			var ee string
+		v15 := buff.ReadInt() // slice len
+		v14 = make([]string, v15)
+		for v16 := range v15 {
+			var v17 string
 			if ctx.IsStringTable() {
-				ff := buff.ReadInt() // read string index
-				ee = ctx.Table.At(ff)
+				v18 := buff.ReadInt() // read string index
+				v17 = ctx.Table.At(v18)
 			} else {
-				ee = buff.ReadString() // read string
+				v17 = buff.ReadString() // read string
 			}
-			dd := ee
-			cc = dd
-
-			aa[i] = cc
+			v14[v16] = v17
 		}
-		target.Services = aa
 		// --- [end][read][slice]([]string) ---
-
 	}
-
-	var hh string
+	target.Services = v14
+	var v19 string
 	if ctx.IsStringTable() {
-		ll := buff.ReadInt() // read string index
-		hh = ctx.Table.At(ll)
+		v20 := buff.ReadInt() // read string index
+		v19 = ctx.Table.At(v20)
 	} else {
-		hh = buff.ReadString() // read string
+		v19 = buff.ReadString() // read string
 	}
-	gg := hh
-	target.ProviderID = gg
-
+	target.ProviderID = v19
+	var v21 AllocationLabels
 	// --- [begin][read][alias](AllocationLabels) ---
-	var mm map[string]string
+	var v22 map[string]string
 	if buff.ReadUInt8() == uint8(0) {
-		mm = nil
+		v22 = nil
 	} else {
 		// --- [begin][read][map](map[string]string) ---
-		oo := buff.ReadInt() // map len
-		nn := make(map[string]string, oo)
-		for range oo {
-			var v string
-			var qq string
+		v23 := buff.ReadInt() // map len
+		v22 = make(map[string]string, v23)
+		for range v23 {
+			var v24 string
 			if ctx.IsStringTable() {
-				rr := buff.ReadInt() // read string index
-				qq = ctx.Table.At(rr)
+				v25 := buff.ReadInt() // read string index
+				v24 = ctx.Table.At(v25)
 			} else {
-				qq = buff.ReadString() // read string
+				v24 = buff.ReadString() // read string
 			}
-			pp := qq
-			v = pp
-
-			var z string
-			var tt string
+			var v26 string
 			if ctx.IsStringTable() {
-				uu := buff.ReadInt() // read string index
-				tt = ctx.Table.At(uu)
+				v27 := buff.ReadInt() // read string index
+				v26 = ctx.Table.At(v27)
 			} else {
-				tt = buff.ReadString() // read string
+				v26 = buff.ReadString() // read string
 			}
-			ss := tt
-			z = ss
-
-			nn[v] = z
+			v22[v24] = v26
 		}
-		mm = nn
 		// --- [end][read][map](map[string]string) ---
-
 	}
-
-	target.Labels = AllocationLabels(mm)
+	v21 = AllocationLabels(v22)
 	// --- [end][read][alias](AllocationLabels) ---
-
+	target.Labels = v21
+	var v28 AllocationAnnotations
 	// --- [begin][read][alias](AllocationAnnotations) ---
-	var ww map[string]string
+	var v29 map[string]string
 	if buff.ReadUInt8() == uint8(0) {
-		ww = nil
+		v29 = nil
 	} else {
 		// --- [begin][read][map](map[string]string) ---
-		yy := buff.ReadInt() // map len
-		xx := make(map[string]string, yy)
-		for range yy {
-			var vv string
-			var bbb string
+		v30 := buff.ReadInt() // map len
+		v29 = make(map[string]string, v30)
+		for range v30 {
+			var v31 string
 			if ctx.IsStringTable() {
-				ccc := buff.ReadInt() // read string index
-				bbb = ctx.Table.At(ccc)
+				v32 := buff.ReadInt() // read string index
+				v31 = ctx.Table.At(v32)
 			} else {
-				bbb = buff.ReadString() // read string
+				v31 = buff.ReadString() // read string
 			}
-			aaa := bbb
-			vv = aaa
-
-			var zz string
-			var eee string
+			var v33 string
 			if ctx.IsStringTable() {
-				fff := buff.ReadInt() // read string index
-				eee = ctx.Table.At(fff)
+				v34 := buff.ReadInt() // read string index
+				v33 = ctx.Table.At(v34)
 			} else {
-				eee = buff.ReadString() // read string
+				v33 = buff.ReadString() // read string
 			}
-			ddd := eee
-			zz = ddd
-
-			xx[vv] = zz
+			v29[v31] = v33
 		}
-		ww = xx
 		// --- [end][read][map](map[string]string) ---
-
 	}
-
-	target.Annotations = AllocationAnnotations(ww)
+	v28 = AllocationAnnotations(v29)
 	// --- [end][read][alias](AllocationAnnotations) ---
+	target.Annotations = v28
 
 	return nil
 }
@@ -1323,129 +1210,108 @@ func (target *AllocationSet) MarshalBinaryWithContext(ctx *EncodingContext) (err
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 		// --- [begin][write][map](map[string]*Allocation) ---
 		buff.WriteInt(len(target.allocations)) // map length
-		for v, z := range target.allocations {
+		for v0, v1 := range target.allocations {
 			if ctx.IsStringTable() {
-				a := ctx.Table.AddOrGet(v)
-				buff.WriteInt(a) // write table index
+				v2 := ctx.Table.AddOrGet(v0)
+				buff.WriteInt(v2) // write table index
 			} else {
-				buff.WriteString(v) // write string
+				buff.WriteString(v0) // write string
 			}
-			if z == nil {
+			if v1 == nil {
 				buff.WriteUInt8(uint8(0)) // write nil byte
 			} else {
 				buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 				// --- [begin][write][struct](Allocation) ---
 				buff.WriteInt(0) // [compatibility, unused]
-				errA := z.MarshalBinaryWithContext(ctx)
-				if errA != nil {
-					return errA
+				v3 := v1.MarshalBinaryWithContext(ctx)
+				if v3 != nil {
+					return v3
 				}
 				// --- [end][write][struct](Allocation) ---
-
 			}
 		}
 		// --- [end][write][map](map[string]*Allocation) ---
-
 	}
 	if target.externalKeys == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 		// --- [begin][write][map](map[string]bool) ---
 		buff.WriteInt(len(target.externalKeys)) // map length
-		for vv, zz := range target.externalKeys {
+		for v4, v5 := range target.externalKeys {
 			if ctx.IsStringTable() {
-				b := ctx.Table.AddOrGet(vv)
-				buff.WriteInt(b) // write table index
+				v6 := ctx.Table.AddOrGet(v4)
+				buff.WriteInt(v6) // write table index
 			} else {
-				buff.WriteString(vv) // write string
+				buff.WriteString(v4) // write string
 			}
-
-			buff.WriteBool(zz) // write bool
-
+			buff.WriteBool(v5)
 		}
 		// --- [end][write][map](map[string]bool) ---
-
 	}
 	if target.idleKeys == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 		// --- [begin][write][map](map[string]bool) ---
 		buff.WriteInt(len(target.idleKeys)) // map length
-		for vvv, zzz := range target.idleKeys {
+		for v7, v8 := range target.idleKeys {
 			if ctx.IsStringTable() {
-				c := ctx.Table.AddOrGet(vvv)
-				buff.WriteInt(c) // write table index
+				v9 := ctx.Table.AddOrGet(v7)
+				buff.WriteInt(v9) // write table index
 			} else {
-				buff.WriteString(vvv) // write string
+				buff.WriteString(v7) // write string
 			}
-
-			buff.WriteBool(zzz) // write bool
-
+			buff.WriteBool(v8)
 		}
 		// --- [end][write][map](map[string]bool) ---
-
 	}
-
 	if ctx.IsStringTable() {
-		d := ctx.Table.AddOrGet(target.FromSource)
-		buff.WriteInt(d) // write table index
+		v10 := ctx.Table.AddOrGet(target.FromSource)
+		buff.WriteInt(v10) // write table index
 	} else {
 		buff.WriteString(target.FromSource) // write string
 	}
-
 	// --- [begin][write][struct](Window) ---
 	buff.WriteInt(0) // [compatibility, unused]
-	errB := target.Window.MarshalBinaryWithContext(ctx)
-	if errB != nil {
-		return errB
+	v11 := target.Window.MarshalBinaryWithContext(ctx)
+	if v11 != nil {
+		return v11
 	}
 	// --- [end][write][struct](Window) ---
-
 	if target.Warnings == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 		// --- [begin][write][slice]([]string) ---
 		buff.WriteInt(len(target.Warnings)) // slice length
-		for i := range target.Warnings {
+		for v12 := range target.Warnings {
 			if ctx.IsStringTable() {
-				e := ctx.Table.AddOrGet(target.Warnings[i])
-				buff.WriteInt(e) // write table index
+				v13 := ctx.Table.AddOrGet(target.Warnings[v12])
+				buff.WriteInt(v13) // write table index
 			} else {
-				buff.WriteString(target.Warnings[i]) // write string
+				buff.WriteString(target.Warnings[v12]) // write string
 			}
-
 		}
 		// --- [end][write][slice]([]string) ---
-
 	}
 	if target.Errors == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 		// --- [begin][write][slice]([]string) ---
 		buff.WriteInt(len(target.Errors)) // slice length
-		for j := range target.Errors {
+		for v14 := range target.Errors {
 			if ctx.IsStringTable() {
-				f := ctx.Table.AddOrGet(target.Errors[j])
-				buff.WriteInt(f) // write table index
+				v15 := ctx.Table.AddOrGet(target.Errors[v14])
+				buff.WriteInt(v15) // write table index
 			} else {
-				buff.WriteString(target.Errors[j]) // write string
+				buff.WriteString(target.Errors[v14]) // write string
 			}
-
 		}
 		// --- [end][write][slice]([]string) ---
-
 	}
 
 	return nil
@@ -1502,173 +1368,143 @@ func (target *AllocationSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (e
 		return fmt.Errorf("Invalid Version Unmarshalling AllocationSet. Expected %d or less, got %d", AllocationCodecVersion, version)
 	}
 
+	var v0 map[string]*Allocation
 	if buff.ReadUInt8() == uint8(0) {
-		target.allocations = nil
+		v0 = nil
 	} else {
 		// --- [begin][read][map](map[string]*Allocation) ---
-		b := buff.ReadInt() // map len
-		a := make(map[string]*Allocation, b)
-		for range b {
-			var v string
-			var d string
+		v1 := buff.ReadInt() // map len
+		v0 = make(map[string]*Allocation, v1)
+		for range v1 {
+			var v2 string
 			if ctx.IsStringTable() {
-				e := buff.ReadInt() // read string index
-				d = ctx.Table.At(e)
+				v3 := buff.ReadInt() // read string index
+				v2 = ctx.Table.At(v3)
 			} else {
-				d = buff.ReadString() // read string
+				v2 = buff.ReadString() // read string
 			}
-			c := d
-			v = c
-
-			var z *Allocation
+			var v4 *Allocation
 			if buff.ReadUInt8() == uint8(0) {
-				z = nil
+				v4 = nil
 			} else {
 				// --- [begin][read][struct](Allocation) ---
-				f := new(Allocation)
+				v5 := new(Allocation)
 				buff.ReadInt() // [compatibility, unused]
-				errA := f.UnmarshalBinaryWithContext(ctx)
-				if errA != nil {
-					return errA
+				v6 := v5.UnmarshalBinaryWithContext(ctx)
+				if v6 != nil {
+					return v6
 				}
-				z = f
+				v4 = v5
 				// --- [end][read][struct](Allocation) ---
-
 			}
-			a[v] = z
+			v0[v2] = v4
 		}
-		target.allocations = a
 		// --- [end][read][map](map[string]*Allocation) ---
-
 	}
-
+	target.allocations = v0
+	var v7 map[string]bool
 	if buff.ReadUInt8() == uint8(0) {
-		target.externalKeys = nil
+		v7 = nil
 	} else {
 		// --- [begin][read][map](map[string]bool) ---
-		h := buff.ReadInt() // map len
-		g := make(map[string]bool, h)
-		for range h {
-			var vv string
-			var m string
+		v8 := buff.ReadInt() // map len
+		v7 = make(map[string]bool, v8)
+		for range v8 {
+			var v9 string
 			if ctx.IsStringTable() {
-				n := buff.ReadInt() // read string index
-				m = ctx.Table.At(n)
+				v10 := buff.ReadInt() // read string index
+				v9 = ctx.Table.At(v10)
 			} else {
-				m = buff.ReadString() // read string
+				v9 = buff.ReadString() // read string
 			}
-			l := m
-			vv = l
-
-			var zz bool
-			o := buff.ReadBool() // read bool
-			zz = o
-
-			g[vv] = zz
+			var v11 bool
+			v11 = buff.ReadBool()
+			v7[v9] = v11
 		}
-		target.externalKeys = g
 		// --- [end][read][map](map[string]bool) ---
-
 	}
-
+	target.externalKeys = v7
+	var v12 map[string]bool
 	if buff.ReadUInt8() == uint8(0) {
-		target.idleKeys = nil
+		v12 = nil
 	} else {
 		// --- [begin][read][map](map[string]bool) ---
-		q := buff.ReadInt() // map len
-		p := make(map[string]bool, q)
-		for range q {
-			var vvv string
-			var s string
+		v13 := buff.ReadInt() // map len
+		v12 = make(map[string]bool, v13)
+		for range v13 {
+			var v14 string
 			if ctx.IsStringTable() {
-				t := buff.ReadInt() // read string index
-				s = ctx.Table.At(t)
+				v15 := buff.ReadInt() // read string index
+				v14 = ctx.Table.At(v15)
 			} else {
-				s = buff.ReadString() // read string
+				v14 = buff.ReadString() // read string
 			}
-			r := s
-			vvv = r
-
-			var zzz bool
-			u := buff.ReadBool() // read bool
-			zzz = u
-
-			p[vvv] = zzz
+			var v16 bool
+			v16 = buff.ReadBool()
+			v12[v14] = v16
 		}
-		target.idleKeys = p
 		// --- [end][read][map](map[string]bool) ---
-
 	}
-
-	var x string
+	target.idleKeys = v12
+	var v17 string
 	if ctx.IsStringTable() {
-		y := buff.ReadInt() // read string index
-		x = ctx.Table.At(y)
+		v18 := buff.ReadInt() // read string index
+		v17 = ctx.Table.At(v18)
 	} else {
-		x = buff.ReadString() // read string
+		v17 = buff.ReadString() // read string
 	}
-	w := x
-	target.FromSource = w
-
+	target.FromSource = v17
+	var v19 Window
 	// --- [begin][read][struct](Window) ---
-	aa := new(Window)
+	v20 := new(Window)
 	buff.ReadInt() // [compatibility, unused]
-	errB := aa.UnmarshalBinaryWithContext(ctx)
-	if errB != nil {
-		return errB
+	v21 := v20.UnmarshalBinaryWithContext(ctx)
+	if v21 != nil {
+		return v21
 	}
-	target.Window = *aa
+	v19 = *v20
 	// --- [end][read][struct](Window) ---
-
+	target.Window = v19
+	var v22 []string
 	if buff.ReadUInt8() == uint8(0) {
-		target.Warnings = nil
+		v22 = nil
 	} else {
 		// --- [begin][read][slice]([]string) ---
-		cc := buff.ReadInt() // slice len
-		bb := make([]string, cc)
-		for i := range cc {
-			var dd string
-			var ff string
+		v23 := buff.ReadInt() // slice len
+		v22 = make([]string, v23)
+		for v24 := range v23 {
+			var v25 string
 			if ctx.IsStringTable() {
-				gg := buff.ReadInt() // read string index
-				ff = ctx.Table.At(gg)
+				v26 := buff.ReadInt() // read string index
+				v25 = ctx.Table.At(v26)
 			} else {
-				ff = buff.ReadString() // read string
+				v25 = buff.ReadString() // read string
 			}
-			ee := ff
-			dd = ee
-
-			bb[i] = dd
+			v22[v24] = v25
 		}
-		target.Warnings = bb
 		// --- [end][read][slice]([]string) ---
-
 	}
-
+	target.Warnings = v22
+	var v27 []string
 	if buff.ReadUInt8() == uint8(0) {
-		target.Errors = nil
+		v27 = nil
 	} else {
 		// --- [begin][read][slice]([]string) ---
-		ll := buff.ReadInt() // slice len
-		hh := make([]string, ll)
-		for j := range ll {
-			var mm string
-			var oo string
+		v28 := buff.ReadInt() // slice len
+		v27 = make([]string, v28)
+		for v29 := range v28 {
+			var v30 string
 			if ctx.IsStringTable() {
-				pp := buff.ReadInt() // read string index
-				oo = ctx.Table.At(pp)
+				v31 := buff.ReadInt() // read string index
+				v30 = ctx.Table.At(v31)
 			} else {
-				oo = buff.ReadString() // read string
+				v30 = buff.ReadString() // read string
 			}
-			nn := oo
-			mm = nn
-
-			hh[j] = mm
+			v27[v29] = v30
 		}
-		target.Errors = hh
 		// --- [end][read][slice]([]string) ---
-
 	}
+	target.Errors = v27
 
 	return nil
 }
@@ -1735,45 +1571,36 @@ func (stream *AllocationSetStream) Stream() iter.Seq2[bstream.BingenFieldInfo, *
 			}
 		} else {
 			// --- [begin][read][streaming-map](map[string]*Allocation) ---
-			a := buff.ReadInt() // map len
-			for range a {
-				var v string
-				var c string
+			v0 := buff.ReadInt() // map len
+			for range v0 {
+				var v1 string
 				if ctx.IsStringTable() {
-					d := buff.ReadInt() // read string index
-					c = ctx.Table.At(d)
+					v2 := buff.ReadInt() // read string index
+					v1 = ctx.Table.At(v2)
 				} else {
-					c = buff.ReadString() // read string
+					v1 = buff.ReadString() // read string
 				}
-				b := c
-				v = b
-
-				var z *Allocation
+				var v3 *Allocation
 				if buff.ReadUInt8() == uint8(0) {
-					z = nil
+					v3 = nil
 				} else {
 					// --- [begin][read][struct](Allocation) ---
-					e := new(Allocation)
+					v4 := new(Allocation)
 					buff.ReadInt() // [compatibility, unused]
-					errA := e.UnmarshalBinaryWithContext(ctx)
-					if errA != nil {
-						stream.err = errA
+					v5 := v4.UnmarshalBinaryWithContext(ctx)
+					if v5 != nil {
+						stream.err = v5
 						return
-
 					}
-					z = e
+					v3 = v4
 					// --- [end][read][struct](Allocation) ---
-
 				}
-
-				if !yield(fi, bstream.PairV(v, z)) {
+				if !yield(fi, bstream.PairV(v1, v3)) {
 					return
 				}
 			}
 			// --- [end][read][streaming-map](map[string]*Allocation) ---
-
 		}
-
 		fi = bstream.BingenFieldInfo{
 			Type: reflect.TypeFor[map[string]bool](),
 			Name: "externalKeys",
@@ -1784,31 +1611,23 @@ func (stream *AllocationSetStream) Stream() iter.Seq2[bstream.BingenFieldInfo, *
 			}
 		} else {
 			// --- [begin][read][streaming-map](map[string]bool) ---
-			f := buff.ReadInt() // map len
-			for range f {
-				var vv string
-				var h string
+			v6 := buff.ReadInt() // map len
+			for range v6 {
+				var v7 string
 				if ctx.IsStringTable() {
-					l := buff.ReadInt() // read string index
-					h = ctx.Table.At(l)
+					v8 := buff.ReadInt() // read string index
+					v7 = ctx.Table.At(v8)
 				} else {
-					h = buff.ReadString() // read string
+					v7 = buff.ReadString() // read string
 				}
-				g := h
-				vv = g
-
-				var zz bool
-				m := buff.ReadBool() // read bool
-				zz = m
-
-				if !yield(fi, bstream.PairV(vv, zz)) {
+				var v9 bool
+				v9 = buff.ReadBool()
+				if !yield(fi, bstream.PairV(v7, v9)) {
 					return
 				}
 			}
 			// --- [end][read][streaming-map](map[string]bool) ---
-
 		}
-
 		fi = bstream.BingenFieldInfo{
 			Type: reflect.TypeFor[map[string]bool](),
 			Name: "idleKeys",
@@ -1819,70 +1638,55 @@ func (stream *AllocationSetStream) Stream() iter.Seq2[bstream.BingenFieldInfo, *
 			}
 		} else {
 			// --- [begin][read][streaming-map](map[string]bool) ---
-			n := buff.ReadInt() // map len
-			for range n {
-				var vvv string
-				var p string
+			v10 := buff.ReadInt() // map len
+			for range v10 {
+				var v11 string
 				if ctx.IsStringTable() {
-					q := buff.ReadInt() // read string index
-					p = ctx.Table.At(q)
+					v12 := buff.ReadInt() // read string index
+					v11 = ctx.Table.At(v12)
 				} else {
-					p = buff.ReadString() // read string
+					v11 = buff.ReadString() // read string
 				}
-				o := p
-				vvv = o
-
-				var zzz bool
-				r := buff.ReadBool() // read bool
-				zzz = r
-
-				if !yield(fi, bstream.PairV(vvv, zzz)) {
+				var v13 bool
+				v13 = buff.ReadBool()
+				if !yield(fi, bstream.PairV(v11, v13)) {
 					return
 				}
 			}
 			// --- [end][read][streaming-map](map[string]bool) ---
-
 		}
-
 		fi = bstream.BingenFieldInfo{
 			Type: reflect.TypeFor[string](),
 			Name: "FromSource",
 		}
-
-		var s string
-		var u string
+		var v14 string
 		if ctx.IsStringTable() {
-			w := buff.ReadInt() // read string index
-			u = ctx.Table.At(w)
+			v15 := buff.ReadInt() // read string index
+			v14 = ctx.Table.At(v15)
 		} else {
-			u = buff.ReadString() // read string
+			v14 = buff.ReadString() // read string
 		}
-		t := u
-		s = t
-		if !yield(fi, bstream.SingleV(s)) {
+		if !yield(fi, bstream.SingleV(v14)) {
 			return
 		}
-
 		fi = bstream.BingenFieldInfo{
 			Type: reflect.TypeFor[Window](),
 			Name: "Window",
 		}
-
+		var v16 Window
 		// --- [begin][read][struct](Window) ---
-		y := new(Window)
+		v17 := new(Window)
 		buff.ReadInt() // [compatibility, unused]
-		errB := y.UnmarshalBinaryWithContext(ctx)
-		if errB != nil {
-			stream.err = errB
+		v18 := v17.UnmarshalBinaryWithContext(ctx)
+		if v18 != nil {
+			stream.err = v18
 			return
-
 		}
-		x := *y
+		v16 = *v17
 		// --- [end][read][struct](Window) ---
-		if !yield(fi, bstream.SingleV(x)) {
+		if !yield(fi, bstream.SingleV(v16)) {
 			return
 		}
-
 		fi = bstream.BingenFieldInfo{
 			Type: reflect.TypeFor[[]string](),
 			Name: "Warnings",
@@ -1893,28 +1697,21 @@ func (stream *AllocationSetStream) Stream() iter.Seq2[bstream.BingenFieldInfo, *
 			}
 		} else {
 			// --- [begin][read][streaming-slice]([]string) ---
-			aa := buff.ReadInt() // slice len
-			for i := range aa {
-
-				var bb string
-				var dd string
+			v19 := buff.ReadInt() // slice len
+			for v20 := range v19 {
+				var v21 string
 				if ctx.IsStringTable() {
-					ee := buff.ReadInt() // read string index
-					dd = ctx.Table.At(ee)
+					v22 := buff.ReadInt() // read string index
+					v21 = ctx.Table.At(v22)
 				} else {
-					dd = buff.ReadString() // read string
+					v21 = buff.ReadString() // read string
 				}
-				cc := dd
-				bb = cc
-
-				if !yield(fi, bstream.PairV(i, bb)) {
+				if !yield(fi, bstream.PairV(v20, v21)) {
 					return
 				}
 			}
 			// --- [end][read][streaming-slice]([]string) ---
-
 		}
-
 		fi = bstream.BingenFieldInfo{
 			Type: reflect.TypeFor[[]string](),
 			Name: "Errors",
@@ -1925,28 +1722,21 @@ func (stream *AllocationSetStream) Stream() iter.Seq2[bstream.BingenFieldInfo, *
 			}
 		} else {
 			// --- [begin][read][streaming-slice]([]string) ---
-			ff := buff.ReadInt() // slice len
-			for j := range ff {
-
-				var gg string
-				var ll string
+			v23 := buff.ReadInt() // slice len
+			for v24 := range v23 {
+				var v25 string
 				if ctx.IsStringTable() {
-					mm := buff.ReadInt() // read string index
-					ll = ctx.Table.At(mm)
+					v26 := buff.ReadInt() // read string index
+					v25 = ctx.Table.At(v26)
 				} else {
-					ll = buff.ReadString() // read string
+					v25 = buff.ReadString() // read string
 				}
-				hh := ll
-				gg = hh
-
-				if !yield(fi, bstream.PairV(j, gg)) {
+				if !yield(fi, bstream.PairV(v24, v25)) {
 					return
 				}
 			}
 			// --- [end][read][streaming-slice]([]string) ---
-
 		}
-
 	}
 }
 
@@ -2001,32 +1791,27 @@ func (target *AllocationSetRange) MarshalBinaryWithContext(ctx *EncodingContext)
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 		// --- [begin][write][slice]([]*AllocationSet) ---
 		buff.WriteInt(len(target.allocations)) // slice length
-		for i := range target.allocations {
-			if target.allocations[i] == nil {
+		for v0 := range target.allocations {
+			if target.allocations[v0] == nil {
 				buff.WriteUInt8(uint8(0)) // write nil byte
 			} else {
 				buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 				// --- [begin][write][struct](AllocationSet) ---
 				buff.WriteInt(0) // [compatibility, unused]
-				errA := target.allocations[i].MarshalBinaryWithContext(ctx)
-				if errA != nil {
-					return errA
+				v1 := target.allocations[v0].MarshalBinaryWithContext(ctx)
+				if v1 != nil {
+					return v1
 				}
 				// --- [end][write][struct](AllocationSet) ---
-
 			}
 		}
 		// --- [end][write][slice]([]*AllocationSet) ---
-
 	}
-
 	if ctx.IsStringTable() {
-		a := ctx.Table.AddOrGet(target.FromStore)
-		buff.WriteInt(a) // write table index
+		v2 := ctx.Table.AddOrGet(target.FromStore)
+		buff.WriteInt(v2) // write table index
 	} else {
 		buff.WriteString(target.FromStore) // write string
 	}
@@ -2085,45 +1870,41 @@ func (target *AllocationSetRange) UnmarshalBinaryWithContext(ctx *DecodingContex
 		return fmt.Errorf("Invalid Version Unmarshalling AllocationSetRange. Expected %d or less, got %d", AllocationCodecVersion, version)
 	}
 
+	var v0 []*AllocationSet
 	if buff.ReadUInt8() == uint8(0) {
-		target.allocations = nil
+		v0 = nil
 	} else {
 		// --- [begin][read][slice]([]*AllocationSet) ---
-		b := buff.ReadInt() // slice len
-		a := make([]*AllocationSet, b)
-		for i := range b {
-			var c *AllocationSet
+		v1 := buff.ReadInt() // slice len
+		v0 = make([]*AllocationSet, v1)
+		for v2 := range v1 {
+			var v3 *AllocationSet
 			if buff.ReadUInt8() == uint8(0) {
-				c = nil
+				v3 = nil
 			} else {
 				// --- [begin][read][struct](AllocationSet) ---
-				d := new(AllocationSet)
+				v4 := new(AllocationSet)
 				buff.ReadInt() // [compatibility, unused]
-				errA := d.UnmarshalBinaryWithContext(ctx)
-				if errA != nil {
-					return errA
+				v5 := v4.UnmarshalBinaryWithContext(ctx)
+				if v5 != nil {
+					return v5
 				}
-				c = d
+				v3 = v4
 				// --- [end][read][struct](AllocationSet) ---
-
 			}
-
-			a[i] = c
+			v0[v2] = v3
 		}
-		target.allocations = a
 		// --- [end][read][slice]([]*AllocationSet) ---
-
 	}
-
-	var f string
+	target.allocations = v0
+	var v6 string
 	if ctx.IsStringTable() {
-		g := buff.ReadInt() // read string index
-		f = ctx.Table.At(g)
+		v7 := buff.ReadInt() // read string index
+		v6 = ctx.Table.At(v7)
 	} else {
-		f = buff.ReadString() // read string
+		v6 = buff.ReadString() // read string
 	}
-	e := f
-	target.FromStore = e
+	target.FromStore = v6
 
 	return nil
 }
@@ -2180,73 +1961,62 @@ func (target *Any) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 		// --- [begin][write][map](map[string]string) ---
 		buff.WriteInt(len(map[string]string(target.labels))) // map length
-		for v, z := range map[string]string(target.labels) {
+		for v0, v1 := range map[string]string(target.labels) {
 			if ctx.IsStringTable() {
-				a := ctx.Table.AddOrGet(v)
-				buff.WriteInt(a) // write table index
+				v2 := ctx.Table.AddOrGet(v0)
+				buff.WriteInt(v2) // write table index
 			} else {
-				buff.WriteString(v) // write string
+				buff.WriteString(v0) // write string
 			}
-
 			if ctx.IsStringTable() {
-				b := ctx.Table.AddOrGet(z)
-				buff.WriteInt(b) // write table index
+				v3 := ctx.Table.AddOrGet(v1)
+				buff.WriteInt(v3) // write table index
 			} else {
-				buff.WriteString(z) // write string
+				buff.WriteString(v1) // write string
 			}
-
 		}
 		// --- [end][write][map](map[string]string) ---
-
 	}
 	// --- [end][write][alias](AssetLabels) ---
 	if target.properties == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 		// --- [begin][write][struct](AssetProperties) ---
 		buff.WriteInt(0) // [compatibility, unused]
-		errA := target.properties.MarshalBinaryWithContext(ctx)
-		if errA != nil {
-			return errA
+		v4 := target.properties.MarshalBinaryWithContext(ctx)
+		if v4 != nil {
+			return v4
 		}
 		// --- [end][write][struct](AssetProperties) ---
-
 	}
-
 	// --- [begin][write][reference](time.Time) ---
-	c, errB := target.start.MarshalBinary()
-	if errB != nil {
-		return errB
+	v5, v6 := target.start.MarshalBinary()
+	if v6 != nil {
+		return v6
 	}
-	buff.WriteInt(len(c))
-	buff.WriteBytes(c)
+	buff.WriteInt(len(v5))
+	buff.WriteBytes(v5)
 	// --- [end][write][reference](time.Time) ---
-
 	// --- [begin][write][reference](time.Time) ---
-	d, errC := target.end.MarshalBinary()
-	if errC != nil {
-		return errC
+	v7, v8 := target.end.MarshalBinary()
+	if v8 != nil {
+		return v8
 	}
-	buff.WriteInt(len(d))
-	buff.WriteBytes(d)
+	buff.WriteInt(len(v7))
+	buff.WriteBytes(v7)
 	// --- [end][write][reference](time.Time) ---
-
 	// --- [begin][write][struct](Window) ---
 	buff.WriteInt(0) // [compatibility, unused]
-	errD := target.window.MarshalBinaryWithContext(ctx)
-	if errD != nil {
-		return errD
+	v9 := target.window.MarshalBinaryWithContext(ctx)
+	if v9 != nil {
+		return v9
 	}
 	// --- [end][write][struct](Window) ---
-
-	buff.WriteFloat64(target.adjustment) // write float64
-
-	buff.WriteFloat64(target.Cost) // write float64
+	buff.WriteFloat64(target.adjustment)
+	buff.WriteFloat64(target.Cost)
 
 	return nil
 }
@@ -2302,100 +2072,93 @@ func (target *Any) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error) 
 		return fmt.Errorf("Invalid Version Unmarshalling Any. Expected %d or less, got %d", AssetsCodecVersion, version)
 	}
 
+	var v0 AssetLabels
 	// --- [begin][read][alias](AssetLabels) ---
-	var a map[string]string
+	var v1 map[string]string
 	if buff.ReadUInt8() == uint8(0) {
-		a = nil
+		v1 = nil
 	} else {
 		// --- [begin][read][map](map[string]string) ---
-		c := buff.ReadInt() // map len
-		b := make(map[string]string, c)
-		for range c {
-			var v string
-			var e string
+		v2 := buff.ReadInt() // map len
+		v1 = make(map[string]string, v2)
+		for range v2 {
+			var v3 string
 			if ctx.IsStringTable() {
-				f := buff.ReadInt() // read string index
-				e = ctx.Table.At(f)
+				v4 := buff.ReadInt() // read string index
+				v3 = ctx.Table.At(v4)
 			} else {
-				e = buff.ReadString() // read string
+				v3 = buff.ReadString() // read string
 			}
-			d := e
-			v = d
-
-			var z string
-			var h string
+			var v5 string
 			if ctx.IsStringTable() {
-				l := buff.ReadInt() // read string index
-				h = ctx.Table.At(l)
+				v6 := buff.ReadInt() // read string index
+				v5 = ctx.Table.At(v6)
 			} else {
-				h = buff.ReadString() // read string
+				v5 = buff.ReadString() // read string
 			}
-			g := h
-			z = g
-
-			b[v] = z
+			v1[v3] = v5
 		}
-		a = b
 		// --- [end][read][map](map[string]string) ---
-
 	}
-
-	target.labels = AssetLabels(a)
+	v0 = AssetLabels(v1)
 	// --- [end][read][alias](AssetLabels) ---
-
+	target.labels = v0
+	var v7 *AssetProperties
 	if buff.ReadUInt8() == uint8(0) {
-		target.properties = nil
+		v7 = nil
 	} else {
-
 		// --- [begin][read][struct](AssetProperties) ---
-		m := new(AssetProperties)
+		v8 := new(AssetProperties)
 		buff.ReadInt() // [compatibility, unused]
-		errA := m.UnmarshalBinaryWithContext(ctx)
-		if errA != nil {
-			return errA
+		v9 := v8.UnmarshalBinaryWithContext(ctx)
+		if v9 != nil {
+			return v9
 		}
-		target.properties = m
+		v7 = v8
 		// --- [end][read][struct](AssetProperties) ---
-
 	}
-
+	target.properties = v7
+	var v10 time.Time
 	// --- [begin][read][reference](time.Time) ---
-	n := new(time.Time)
-	o := buff.ReadInt() // byte array length
-	p := buff.ReadBytes(o)
-	errB := n.UnmarshalBinary(p)
-	if errB != nil {
-		return errB
+	v11 := new(time.Time)
+	v12 := buff.ReadInt() // byte array length
+	v13 := buff.ReadBytes(v12)
+	v14 := v11.UnmarshalBinary(v13)
+	if v14 != nil {
+		return v14
 	}
-	target.start = *n
+	v10 = *v11
 	// --- [end][read][reference](time.Time) ---
-
+	target.start = v10
+	var v15 time.Time
 	// --- [begin][read][reference](time.Time) ---
-	q := new(time.Time)
-	r := buff.ReadInt() // byte array length
-	s := buff.ReadBytes(r)
-	errC := q.UnmarshalBinary(s)
-	if errC != nil {
-		return errC
+	v16 := new(time.Time)
+	v17 := buff.ReadInt() // byte array length
+	v18 := buff.ReadBytes(v17)
+	v19 := v16.UnmarshalBinary(v18)
+	if v19 != nil {
+		return v19
 	}
-	target.end = *q
+	v15 = *v16
 	// --- [end][read][reference](time.Time) ---
-
+	target.end = v15
+	var v20 Window
 	// --- [begin][read][struct](Window) ---
-	t := new(Window)
+	v21 := new(Window)
 	buff.ReadInt() // [compatibility, unused]
-	errD := t.UnmarshalBinaryWithContext(ctx)
-	if errD != nil {
-		return errD
+	v22 := v21.UnmarshalBinaryWithContext(ctx)
+	if v22 != nil {
+		return v22
 	}
-	target.window = *t
+	v20 = *v21
 	// --- [end][read][struct](Window) ---
-
-	u := buff.ReadFloat64() // read float64
-	target.adjustment = u
-
-	w := buff.ReadFloat64() // read float64
-	target.Cost = w
+	target.window = v20
+	var v23 float64
+	v23 = buff.ReadFloat64()
+	target.adjustment = v23
+	var v24 float64
+	v24 = buff.ReadFloat64()
+	target.Cost = v24
 
 	return nil
 }
@@ -2448,57 +2211,50 @@ func (target *AssetProperties) MarshalBinaryWithContext(ctx *EncodingContext) (e
 	buff.WriteUInt8(AssetsCodecVersion) // version
 
 	if ctx.IsStringTable() {
-		a := ctx.Table.AddOrGet(target.Category)
-		buff.WriteInt(a) // write table index
+		v0 := ctx.Table.AddOrGet(target.Category)
+		buff.WriteInt(v0) // write table index
 	} else {
 		buff.WriteString(target.Category) // write string
 	}
-
 	if ctx.IsStringTable() {
-		b := ctx.Table.AddOrGet(target.Provider)
-		buff.WriteInt(b) // write table index
+		v1 := ctx.Table.AddOrGet(target.Provider)
+		buff.WriteInt(v1) // write table index
 	} else {
 		buff.WriteString(target.Provider) // write string
 	}
-
 	if ctx.IsStringTable() {
-		c := ctx.Table.AddOrGet(target.Account)
-		buff.WriteInt(c) // write table index
+		v2 := ctx.Table.AddOrGet(target.Account)
+		buff.WriteInt(v2) // write table index
 	} else {
 		buff.WriteString(target.Account) // write string
 	}
-
 	if ctx.IsStringTable() {
-		d := ctx.Table.AddOrGet(target.Project)
-		buff.WriteInt(d) // write table index
+		v3 := ctx.Table.AddOrGet(target.Project)
+		buff.WriteInt(v3) // write table index
 	} else {
 		buff.WriteString(target.Project) // write string
 	}
-
 	if ctx.IsStringTable() {
-		e := ctx.Table.AddOrGet(target.Service)
-		buff.WriteInt(e) // write table index
+		v4 := ctx.Table.AddOrGet(target.Service)
+		buff.WriteInt(v4) // write table index
 	} else {
 		buff.WriteString(target.Service) // write string
 	}
-
 	if ctx.IsStringTable() {
-		f := ctx.Table.AddOrGet(target.Cluster)
-		buff.WriteInt(f) // write table index
+		v5 := ctx.Table.AddOrGet(target.Cluster)
+		buff.WriteInt(v5) // write table index
 	} else {
 		buff.WriteString(target.Cluster) // write string
 	}
-
 	if ctx.IsStringTable() {
-		g := ctx.Table.AddOrGet(target.Name)
-		buff.WriteInt(g) // write table index
+		v6 := ctx.Table.AddOrGet(target.Name)
+		buff.WriteInt(v6) // write table index
 	} else {
 		buff.WriteString(target.Name) // write string
 	}
-
 	if ctx.IsStringTable() {
-		h := ctx.Table.AddOrGet(target.ProviderID)
-		buff.WriteInt(h) // write table index
+		v7 := ctx.Table.AddOrGet(target.ProviderID)
+		buff.WriteInt(v7) // write table index
 	} else {
 		buff.WriteString(target.ProviderID) // write string
 	}
@@ -2557,85 +2313,70 @@ func (target *AssetProperties) UnmarshalBinaryWithContext(ctx *DecodingContext) 
 		return fmt.Errorf("Invalid Version Unmarshalling AssetProperties. Expected %d or less, got %d", AssetsCodecVersion, version)
 	}
 
-	var b string
+	var v0 string
 	if ctx.IsStringTable() {
-		c := buff.ReadInt() // read string index
-		b = ctx.Table.At(c)
+		v1 := buff.ReadInt() // read string index
+		v0 = ctx.Table.At(v1)
 	} else {
-		b = buff.ReadString() // read string
+		v0 = buff.ReadString() // read string
 	}
-	a := b
-	target.Category = a
-
-	var e string
+	target.Category = v0
+	var v2 string
 	if ctx.IsStringTable() {
-		f := buff.ReadInt() // read string index
-		e = ctx.Table.At(f)
+		v3 := buff.ReadInt() // read string index
+		v2 = ctx.Table.At(v3)
 	} else {
-		e = buff.ReadString() // read string
+		v2 = buff.ReadString() // read string
 	}
-	d := e
-	target.Provider = d
-
-	var h string
+	target.Provider = v2
+	var v4 string
 	if ctx.IsStringTable() {
-		l := buff.ReadInt() // read string index
-		h = ctx.Table.At(l)
+		v5 := buff.ReadInt() // read string index
+		v4 = ctx.Table.At(v5)
 	} else {
-		h = buff.ReadString() // read string
+		v4 = buff.ReadString() // read string
 	}
-	g := h
-	target.Account = g
-
-	var n string
+	target.Account = v4
+	var v6 string
 	if ctx.IsStringTable() {
-		o := buff.ReadInt() // read string index
-		n = ctx.Table.At(o)
+		v7 := buff.ReadInt() // read string index
+		v6 = ctx.Table.At(v7)
 	} else {
-		n = buff.ReadString() // read string
+		v6 = buff.ReadString() // read string
 	}
-	m := n
-	target.Project = m
-
-	var q string
+	target.Project = v6
+	var v8 string
 	if ctx.IsStringTable() {
-		r := buff.ReadInt() // read string index
-		q = ctx.Table.At(r)
+		v9 := buff.ReadInt() // read string index
+		v8 = ctx.Table.At(v9)
 	} else {
-		q = buff.ReadString() // read string
+		v8 = buff.ReadString() // read string
 	}
-	p := q
-	target.Service = p
-
-	var t string
+	target.Service = v8
+	var v10 string
 	if ctx.IsStringTable() {
-		u := buff.ReadInt() // read string index
-		t = ctx.Table.At(u)
+		v11 := buff.ReadInt() // read string index
+		v10 = ctx.Table.At(v11)
 	} else {
-		t = buff.ReadString() // read string
+		v10 = buff.ReadString() // read string
 	}
-	s := t
-	target.Cluster = s
-
-	var x string
+	target.Cluster = v10
+	var v12 string
 	if ctx.IsStringTable() {
-		y := buff.ReadInt() // read string index
-		x = ctx.Table.At(y)
+		v13 := buff.ReadInt() // read string index
+		v12 = ctx.Table.At(v13)
 	} else {
-		x = buff.ReadString() // read string
+		v12 = buff.ReadString() // read string
 	}
-	w := x
-	target.Name = w
-
-	var bb string
+	target.Name = v12
+	var v14 string
 	if ctx.IsStringTable() {
-		cc := buff.ReadInt() // read string index
-		bb = ctx.Table.At(cc)
+		v15 := buff.ReadInt() // read string index
+		v14 = ctx.Table.At(v15)
 	} else {
-		bb = buff.ReadString() // read string
+		v14 = buff.ReadString() // read string
 	}
-	aa := bb
-	target.ProviderID = aa
+	target.ProviderID = v14
 
 	return nil
 }
@@ -2698,120 +2439,103 @@ func (target *AssetSet) MarshalBinaryWithContext(ctx *EncodingContext) (err erro
 
 	buff := ctx.Buffer
 	buff.WriteUInt8(AssetsCodecVersion) // version
-
 	// execute pre-processing func
 	preProcessAssetSet(target)
+
 	if target.aggregateBy == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 		// --- [begin][write][slice]([]string) ---
 		buff.WriteInt(len(target.aggregateBy)) // slice length
-		for i := range target.aggregateBy {
+		for v0 := range target.aggregateBy {
 			if ctx.IsStringTable() {
-				a := ctx.Table.AddOrGet(target.aggregateBy[i])
-				buff.WriteInt(a) // write table index
+				v1 := ctx.Table.AddOrGet(target.aggregateBy[v0])
+				buff.WriteInt(v1) // write table index
 			} else {
-				buff.WriteString(target.aggregateBy[i]) // write string
+				buff.WriteString(target.aggregateBy[v0]) // write string
 			}
-
 		}
 		// --- [end][write][slice]([]string) ---
-
 	}
 	if target.assets == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 		// --- [begin][write][map](map[string]Asset) ---
 		buff.WriteInt(len(target.assets)) // map length
-		for v, z := range target.assets {
+		for v2, v3 := range target.assets {
 			if ctx.IsStringTable() {
-				b := ctx.Table.AddOrGet(v)
-				buff.WriteInt(b) // write table index
+				v4 := ctx.Table.AddOrGet(v2)
+				buff.WriteInt(v4) // write table index
 			} else {
-				buff.WriteString(v) // write string
+				buff.WriteString(v2) // write string
 			}
-			if z == nil {
+			if v3 == nil {
 				buff.WriteUInt8(uint8(0)) // write nil byte
 			} else {
 				buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 				// --- [begin][write][interface](Asset) ---
-				c := reflect.ValueOf(z).Interface()
-				d, okA := c.(BinEncoder)
-				if !okA {
-					return fmt.Errorf("type: %s does not implement %s.BinEncoder", typeToString(z), GeneratorPackageName)
+				v5 := reflect.ValueOf(v3).Interface()
+				v6, v7 := v5.(BinEncoder)
+				if !v7 {
+					return fmt.Errorf("type: %s does not implement %s.BinEncoder", typeToString(v3), GeneratorPackageName)
 				}
-				buff.WriteString(typeToString(z))
+				buff.WriteString(typeToString(v3))
 				buff.WriteInt(0) // [compatibility, unused]
-
-				errA := d.MarshalBinaryWithContext(ctx)
-				if errA != nil {
-					return errA
+				v8 := v6.MarshalBinaryWithContext(ctx)
+				if v8 != nil {
+					return v8
 				}
 				// --- [end][write][interface](Asset) ---
-
 			}
 		}
 		// --- [end][write][map](map[string]Asset) ---
-
 	}
-
 	if ctx.IsStringTable() {
-		e := ctx.Table.AddOrGet(target.FromSource)
-		buff.WriteInt(e) // write table index
+		v9 := ctx.Table.AddOrGet(target.FromSource)
+		buff.WriteInt(v9) // write table index
 	} else {
 		buff.WriteString(target.FromSource) // write string
 	}
-
 	// --- [begin][write][struct](Window) ---
 	buff.WriteInt(0) // [compatibility, unused]
-	errB := target.Window.MarshalBinaryWithContext(ctx)
-	if errB != nil {
-		return errB
+	v10 := target.Window.MarshalBinaryWithContext(ctx)
+	if v10 != nil {
+		return v10
 	}
 	// --- [end][write][struct](Window) ---
-
 	if target.Warnings == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 		// --- [begin][write][slice]([]string) ---
 		buff.WriteInt(len(target.Warnings)) // slice length
-		for j := range target.Warnings {
+		for v11 := range target.Warnings {
 			if ctx.IsStringTable() {
-				f := ctx.Table.AddOrGet(target.Warnings[j])
-				buff.WriteInt(f) // write table index
+				v12 := ctx.Table.AddOrGet(target.Warnings[v11])
+				buff.WriteInt(v12) // write table index
 			} else {
-				buff.WriteString(target.Warnings[j]) // write string
+				buff.WriteString(target.Warnings[v11]) // write string
 			}
-
 		}
 		// --- [end][write][slice]([]string) ---
-
 	}
 	if target.Errors == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 		// --- [begin][write][slice]([]string) ---
 		buff.WriteInt(len(target.Errors)) // slice length
-		for ii := range target.Errors {
+		for v13 := range target.Errors {
 			if ctx.IsStringTable() {
-				g := ctx.Table.AddOrGet(target.Errors[ii])
-				buff.WriteInt(g) // write table index
+				v14 := ctx.Table.AddOrGet(target.Errors[v13])
+				buff.WriteInt(v14) // write table index
 			} else {
-				buff.WriteString(target.Errors[ii]) // write string
+				buff.WriteString(target.Errors[v13]) // write string
 			}
-
 		}
 		// --- [end][write][slice]([]string) ---
-
 	}
 
 	return nil
@@ -2868,150 +2592,127 @@ func (target *AssetSet) UnmarshalBinaryWithContext(ctx *DecodingContext) (err er
 		return fmt.Errorf("Invalid Version Unmarshalling AssetSet. Expected %d or less, got %d", AssetsCodecVersion, version)
 	}
 
+	var v0 []string
 	if buff.ReadUInt8() == uint8(0) {
-		target.aggregateBy = nil
+		v0 = nil
 	} else {
 		// --- [begin][read][slice]([]string) ---
-		b := buff.ReadInt() // slice len
-		a := make([]string, b)
-		for i := range b {
-			var c string
-			var e string
+		v1 := buff.ReadInt() // slice len
+		v0 = make([]string, v1)
+		for v2 := range v1 {
+			var v3 string
 			if ctx.IsStringTable() {
-				f := buff.ReadInt() // read string index
-				e = ctx.Table.At(f)
+				v4 := buff.ReadInt() // read string index
+				v3 = ctx.Table.At(v4)
 			} else {
-				e = buff.ReadString() // read string
+				v3 = buff.ReadString() // read string
 			}
-			d := e
-			c = d
-
-			a[i] = c
+			v0[v2] = v3
 		}
-		target.aggregateBy = a
 		// --- [end][read][slice]([]string) ---
-
 	}
-
+	target.aggregateBy = v0
+	var v5 map[string]Asset
 	if buff.ReadUInt8() == uint8(0) {
-		target.assets = nil
+		v5 = nil
 	} else {
 		// --- [begin][read][map](map[string]Asset) ---
-		h := buff.ReadInt() // map len
-		g := make(map[string]Asset, h)
-		for range h {
-			var v string
-			var m string
+		v6 := buff.ReadInt() // map len
+		v5 = make(map[string]Asset, v6)
+		for range v6 {
+			var v7 string
 			if ctx.IsStringTable() {
-				n := buff.ReadInt() // read string index
-				m = ctx.Table.At(n)
+				v8 := buff.ReadInt() // read string index
+				v7 = ctx.Table.At(v8)
 			} else {
-				m = buff.ReadString() // read string
+				v7 = buff.ReadString() // read string
 			}
-			l := m
-			v = l
-
-			var z Asset
+			var v9 Asset
 			if buff.ReadUInt8() == uint8(0) {
-				z = nil
+				v9 = nil
 			} else {
 				// --- [begin][read][interface](Asset) ---
-				o := buff.ReadString()
-				_, p, _ := resolveType(o)
-				if _, ok := typeMap[p]; !ok {
-					return fmt.Errorf("Unknown Type: %s", p)
+				v10 := buff.ReadString()
+				_, v11, _ := resolveType(v10)
+				if _, ok := typeMap[v11]; !ok {
+					return fmt.Errorf("unknown type: %s", v11)
 				}
-
-				q, okA := reflect.New(typeMap[p]).Interface().(BinDecoder)
-				if !okA {
-					return fmt.Errorf("Type: %s does not implement %s.BinDecoder.", p, GeneratorPackageName)
+				v12, v13 := reflect.New(typeMap[v11]).Interface().(BinDecoder)
+				if !v13 {
+					return fmt.Errorf("type: %s does not implement %s.BinDecoder.", v11, GeneratorPackageName)
 				}
-
 				buff.ReadInt() // [compatibility, unused]
-				errA := q.UnmarshalBinaryWithContext(ctx)
-				if errA != nil {
-					return errA
+				v14 := v12.UnmarshalBinaryWithContext(ctx)
+				if v14 != nil {
+					return v14
 				}
-				z = q.(Asset)
+				v9 = v12.(Asset)
 				// --- [end][read][interface](Asset) ---
-
 			}
-			g[v] = z
+			v5[v7] = v9
 		}
-		target.assets = g
 		// --- [end][read][map](map[string]Asset) ---
-
 	}
-
-	var s string
+	target.assets = v5
+	var v15 string
 	if ctx.IsStringTable() {
-		t := buff.ReadInt() // read string index
-		s = ctx.Table.At(t)
+		v16 := buff.ReadInt() // read string index
+		v15 = ctx.Table.At(v16)
 	} else {
-		s = buff.ReadString() // read string
+		v15 = buff.ReadString() // read string
 	}
-	r := s
-	target.FromSource = r
-
+	target.FromSource = v15
+	var v17 Window
 	// --- [begin][read][struct](Window) ---
-	u := new(Window)
+	v18 := new(Window)
 	buff.ReadInt() // [compatibility, unused]
-	errB := u.UnmarshalBinaryWithContext(ctx)
-	if errB != nil {
-		return errB
+	v19 := v18.UnmarshalBinaryWithContext(ctx)
+	if v19 != nil {
+		return v19
 	}
-	target.Window = *u
+	v17 = *v18
 	// --- [end][read][struct](Window) ---
-
+	target.Window = v17
+	var v20 []string
 	if buff.ReadUInt8() == uint8(0) {
-		target.Warnings = nil
+		v20 = nil
 	} else {
 		// --- [begin][read][slice]([]string) ---
-		x := buff.ReadInt() // slice len
-		w := make([]string, x)
-		for j := range x {
-			var y string
-			var bb string
+		v21 := buff.ReadInt() // slice len
+		v20 = make([]string, v21)
+		for v22 := range v21 {
+			var v23 string
 			if ctx.IsStringTable() {
-				cc := buff.ReadInt() // read string index
-				bb = ctx.Table.At(cc)
+				v24 := buff.ReadInt() // read string index
+				v23 = ctx.Table.At(v24)
 			} else {
-				bb = buff.ReadString() // read string
+				v23 = buff.ReadString() // read string
 			}
-			aa := bb
-			y = aa
-
-			w[j] = y
+			v20[v22] = v23
 		}
-		target.Warnings = w
 		// --- [end][read][slice]([]string) ---
-
 	}
-
+	target.Warnings = v20
+	var v25 []string
 	if buff.ReadUInt8() == uint8(0) {
-		target.Errors = nil
+		v25 = nil
 	} else {
 		// --- [begin][read][slice]([]string) ---
-		ee := buff.ReadInt() // slice len
-		dd := make([]string, ee)
-		for ii := range ee {
-			var ff string
-			var hh string
+		v26 := buff.ReadInt() // slice len
+		v25 = make([]string, v26)
+		for v27 := range v26 {
+			var v28 string
 			if ctx.IsStringTable() {
-				ll := buff.ReadInt() // read string index
-				hh = ctx.Table.At(ll)
+				v29 := buff.ReadInt() // read string index
+				v28 = ctx.Table.At(v29)
 			} else {
-				hh = buff.ReadString() // read string
+				v28 = buff.ReadString() // read string
 			}
-			gg := hh
-			ff = gg
-
-			dd[ii] = ff
+			v25[v27] = v28
 		}
-		target.Errors = dd
 		// --- [end][read][slice]([]string) ---
-
 	}
+	target.Errors = v25
 
 	// execute post-processing func
 	postProcessAssetSet(target)
@@ -3081,28 +2782,21 @@ func (stream *AssetSetStream) Stream() iter.Seq2[bstream.BingenFieldInfo, *bstre
 			}
 		} else {
 			// --- [begin][read][streaming-slice]([]string) ---
-			a := buff.ReadInt() // slice len
-			for i := range a {
-
-				var b string
-				var d string
+			v0 := buff.ReadInt() // slice len
+			for v1 := range v0 {
+				var v2 string
 				if ctx.IsStringTable() {
-					e := buff.ReadInt() // read string index
-					d = ctx.Table.At(e)
+					v3 := buff.ReadInt() // read string index
+					v2 = ctx.Table.At(v3)
 				} else {
-					d = buff.ReadString() // read string
+					v2 = buff.ReadString() // read string
 				}
-				c := d
-				b = c
-
-				if !yield(fi, bstream.PairV(i, b)) {
+				if !yield(fi, bstream.PairV(v1, v2)) {
 					return
 				}
 			}
 			// --- [end][read][streaming-slice]([]string) ---
-
 		}
-
 		fi = bstream.BingenFieldInfo{
 			Type: reflect.TypeFor[map[string]Asset](),
 			Name: "assets",
@@ -3113,98 +2807,78 @@ func (stream *AssetSetStream) Stream() iter.Seq2[bstream.BingenFieldInfo, *bstre
 			}
 		} else {
 			// --- [begin][read][streaming-map](map[string]Asset) ---
-			f := buff.ReadInt() // map len
-			for range f {
-				var v string
-				var h string
+			v4 := buff.ReadInt() // map len
+			for range v4 {
+				var v5 string
 				if ctx.IsStringTable() {
-					l := buff.ReadInt() // read string index
-					h = ctx.Table.At(l)
+					v6 := buff.ReadInt() // read string index
+					v5 = ctx.Table.At(v6)
 				} else {
-					h = buff.ReadString() // read string
+					v5 = buff.ReadString() // read string
 				}
-				g := h
-				v = g
-
-				var z Asset
+				var v7 Asset
 				if buff.ReadUInt8() == uint8(0) {
-					z = nil
+					v7 = nil
 				} else {
 					// --- [begin][read][interface](Asset) ---
-					m := buff.ReadString()
-					_, n, _ := resolveType(m)
-					if _, ok := typeMap[n]; !ok {
-						stream.err = fmt.Errorf("Unknown Type: %s", n)
+					v8 := buff.ReadString()
+					_, v9, _ := resolveType(v8)
+					if _, ok := typeMap[v9]; !ok {
+						stream.err = fmt.Errorf("unknown type: %s", v9)
 						return
-
 					}
-
-					o, okA := reflect.New(typeMap[n]).Interface().(BinDecoder)
-					if !okA {
-						stream.err = fmt.Errorf("Type: %s does not implement %s.BinDecoder.", n, GeneratorPackageName)
+					v10, v11 := reflect.New(typeMap[v9]).Interface().(BinDecoder)
+					if !v11 {
+						stream.err = fmt.Errorf("type: %s does not implement %s.BinDecoder.", v9, GeneratorPackageName)
 						return
-
 					}
-
 					buff.ReadInt() // [compatibility, unused]
-					errA := o.UnmarshalBinaryWithContext(ctx)
-					if errA != nil {
-						stream.err = errA
+					v12 := v10.UnmarshalBinaryWithContext(ctx)
+					if v12 != nil {
+						stream.err = v12
 						return
-
 					}
-					z = o.(Asset)
+					v7 = v10.(Asset)
 					// --- [end][read][interface](Asset) ---
-
 				}
-
-				if !yield(fi, bstream.PairV(v, z)) {
+				if !yield(fi, bstream.PairV(v5, v7)) {
 					return
 				}
 			}
 			// --- [end][read][streaming-map](map[string]Asset) ---
-
 		}
-
 		fi = bstream.BingenFieldInfo{
 			Type: reflect.TypeFor[string](),
 			Name: "FromSource",
 		}
-
-		var p string
-		var r string
+		var v13 string
 		if ctx.IsStringTable() {
-			s := buff.ReadInt() // read string index
-			r = ctx.Table.At(s)
+			v14 := buff.ReadInt() // read string index
+			v13 = ctx.Table.At(v14)
 		} else {
-			r = buff.ReadString() // read string
+			v13 = buff.ReadString() // read string
 		}
-		q := r
-		p = q
-		if !yield(fi, bstream.SingleV(p)) {
+		if !yield(fi, bstream.SingleV(v13)) {
 			return
 		}
-
 		fi = bstream.BingenFieldInfo{
 			Type: reflect.TypeFor[Window](),
 			Name: "Window",
 		}
-
+		var v15 Window
 		// --- [begin][read][struct](Window) ---
-		u := new(Window)
+		v16 := new(Window)
 		buff.ReadInt() // [compatibility, unused]
-		errB := u.UnmarshalBinaryWithContext(ctx)
-		if errB != nil {
-			stream.err = errB
+		v17 := v16.UnmarshalBinaryWithContext(ctx)
+		if v17 != nil {
+			stream.err = v17
 			return
-
 		}
-		t := *u
+		v15 = *v16
 		// --- [end][read][struct](Window) ---
-		if !yield(fi, bstream.SingleV(t)) {
+		if !yield(fi, bstream.SingleV(v15)) {
 			return
 		}
-
 		fi = bstream.BingenFieldInfo{
 			Type: reflect.TypeFor[[]string](),
 			Name: "Warnings",
@@ -3215,28 +2889,21 @@ func (stream *AssetSetStream) Stream() iter.Seq2[bstream.BingenFieldInfo, *bstre
 			}
 		} else {
 			// --- [begin][read][streaming-slice]([]string) ---
-			w := buff.ReadInt() // slice len
-			for j := range w {
-
-				var x string
-				var aa string
+			v18 := buff.ReadInt() // slice len
+			for v19 := range v18 {
+				var v20 string
 				if ctx.IsStringTable() {
-					bb := buff.ReadInt() // read string index
-					aa = ctx.Table.At(bb)
+					v21 := buff.ReadInt() // read string index
+					v20 = ctx.Table.At(v21)
 				} else {
-					aa = buff.ReadString() // read string
+					v20 = buff.ReadString() // read string
 				}
-				y := aa
-				x = y
-
-				if !yield(fi, bstream.PairV(j, x)) {
+				if !yield(fi, bstream.PairV(v19, v20)) {
 					return
 				}
 			}
 			// --- [end][read][streaming-slice]([]string) ---
-
 		}
-
 		fi = bstream.BingenFieldInfo{
 			Type: reflect.TypeFor[[]string](),
 			Name: "Errors",
@@ -3247,28 +2914,21 @@ func (stream *AssetSetStream) Stream() iter.Seq2[bstream.BingenFieldInfo, *bstre
 			}
 		} else {
 			// --- [begin][read][streaming-slice]([]string) ---
-			cc := buff.ReadInt() // slice len
-			for ii := range cc {
-
-				var dd string
-				var ff string
+			v22 := buff.ReadInt() // slice len
+			for v23 := range v22 {
+				var v24 string
 				if ctx.IsStringTable() {
-					gg := buff.ReadInt() // read string index
-					ff = ctx.Table.At(gg)
+					v25 := buff.ReadInt() // read string index
+					v24 = ctx.Table.At(v25)
 				} else {
-					ff = buff.ReadString() // read string
+					v24 = buff.ReadString() // read string
 				}
-				ee := ff
-				dd = ee
-
-				if !yield(fi, bstream.PairV(ii, dd)) {
+				if !yield(fi, bstream.PairV(v23, v24)) {
 					return
 				}
 			}
 			// --- [end][read][streaming-slice]([]string) ---
-
 		}
-
 	}
 }
 
@@ -3323,32 +2983,27 @@ func (target *AssetSetRange) MarshalBinaryWithContext(ctx *EncodingContext) (err
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 		// --- [begin][write][slice]([]*AssetSet) ---
 		buff.WriteInt(len(target.assets)) // slice length
-		for i := range target.assets {
-			if target.assets[i] == nil {
+		for v0 := range target.assets {
+			if target.assets[v0] == nil {
 				buff.WriteUInt8(uint8(0)) // write nil byte
 			} else {
 				buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 				// --- [begin][write][struct](AssetSet) ---
 				buff.WriteInt(0) // [compatibility, unused]
-				errA := target.assets[i].MarshalBinaryWithContext(ctx)
-				if errA != nil {
-					return errA
+				v1 := target.assets[v0].MarshalBinaryWithContext(ctx)
+				if v1 != nil {
+					return v1
 				}
 				// --- [end][write][struct](AssetSet) ---
-
 			}
 		}
 		// --- [end][write][slice]([]*AssetSet) ---
-
 	}
-
 	if ctx.IsStringTable() {
-		a := ctx.Table.AddOrGet(target.FromStore)
-		buff.WriteInt(a) // write table index
+		v2 := ctx.Table.AddOrGet(target.FromStore)
+		buff.WriteInt(v2) // write table index
 	} else {
 		buff.WriteString(target.FromStore) // write string
 	}
@@ -3407,45 +3062,41 @@ func (target *AssetSetRange) UnmarshalBinaryWithContext(ctx *DecodingContext) (e
 		return fmt.Errorf("Invalid Version Unmarshalling AssetSetRange. Expected %d or less, got %d", AssetsCodecVersion, version)
 	}
 
+	var v0 []*AssetSet
 	if buff.ReadUInt8() == uint8(0) {
-		target.assets = nil
+		v0 = nil
 	} else {
 		// --- [begin][read][slice]([]*AssetSet) ---
-		b := buff.ReadInt() // slice len
-		a := make([]*AssetSet, b)
-		for i := range b {
-			var c *AssetSet
+		v1 := buff.ReadInt() // slice len
+		v0 = make([]*AssetSet, v1)
+		for v2 := range v1 {
+			var v3 *AssetSet
 			if buff.ReadUInt8() == uint8(0) {
-				c = nil
+				v3 = nil
 			} else {
 				// --- [begin][read][struct](AssetSet) ---
-				d := new(AssetSet)
+				v4 := new(AssetSet)
 				buff.ReadInt() // [compatibility, unused]
-				errA := d.UnmarshalBinaryWithContext(ctx)
-				if errA != nil {
-					return errA
+				v5 := v4.UnmarshalBinaryWithContext(ctx)
+				if v5 != nil {
+					return v5
 				}
-				c = d
+				v3 = v4
 				// --- [end][read][struct](AssetSet) ---
-
 			}
-
-			a[i] = c
+			v0[v2] = v3
 		}
-		target.assets = a
 		// --- [end][read][slice]([]*AssetSet) ---
-
 	}
-
-	var f string
+	target.assets = v0
+	var v6 string
 	if ctx.IsStringTable() {
-		g := buff.ReadInt() // read string index
-		f = ctx.Table.At(g)
+		v7 := buff.ReadInt() // read string index
+		v6 = ctx.Table.At(v7)
 	} else {
-		f = buff.ReadString() // read string
+		v6 = buff.ReadString() // read string
 	}
-	e := f
-	target.FromStore = e
+	target.FromStore = v6
 
 	return nil
 }
@@ -3497,13 +3148,10 @@ func (target *Breakdown) MarshalBinaryWithContext(ctx *EncodingContext) (err err
 	buff := ctx.Buffer
 	buff.WriteUInt8(AssetsCodecVersion) // version
 
-	buff.WriteFloat64(target.Idle) // write float64
-
-	buff.WriteFloat64(target.Other) // write float64
-
-	buff.WriteFloat64(target.System) // write float64
-
-	buff.WriteFloat64(target.User) // write float64
+	buff.WriteFloat64(target.Idle)
+	buff.WriteFloat64(target.Other)
+	buff.WriteFloat64(target.System)
+	buff.WriteFloat64(target.User)
 
 	return nil
 }
@@ -3559,17 +3207,18 @@ func (target *Breakdown) UnmarshalBinaryWithContext(ctx *DecodingContext) (err e
 		return fmt.Errorf("Invalid Version Unmarshalling Breakdown. Expected %d or less, got %d", AssetsCodecVersion, version)
 	}
 
-	a := buff.ReadFloat64() // read float64
-	target.Idle = a
-
-	b := buff.ReadFloat64() // read float64
-	target.Other = b
-
-	c := buff.ReadFloat64() // read float64
-	target.System = c
-
-	d := buff.ReadFloat64() // read float64
-	target.User = d
+	var v0 float64
+	v0 = buff.ReadFloat64()
+	target.Idle = v0
+	var v1 float64
+	v1 = buff.ReadFloat64()
+	target.Other = v1
+	var v2 float64
+	v2 = buff.ReadFloat64()
+	target.System = v2
+	var v3 float64
+	v3 = buff.ReadFloat64()
+	target.User = v3
 
 	return nil
 }
@@ -3626,75 +3275,63 @@ func (target *Cloud) MarshalBinaryWithContext(ctx *EncodingContext) (err error) 
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 		// --- [begin][write][map](map[string]string) ---
 		buff.WriteInt(len(map[string]string(target.labels))) // map length
-		for v, z := range map[string]string(target.labels) {
+		for v0, v1 := range map[string]string(target.labels) {
 			if ctx.IsStringTable() {
-				a := ctx.Table.AddOrGet(v)
-				buff.WriteInt(a) // write table index
+				v2 := ctx.Table.AddOrGet(v0)
+				buff.WriteInt(v2) // write table index
 			} else {
-				buff.WriteString(v) // write string
+				buff.WriteString(v0) // write string
 			}
-
 			if ctx.IsStringTable() {
-				b := ctx.Table.AddOrGet(z)
-				buff.WriteInt(b) // write table index
+				v3 := ctx.Table.AddOrGet(v1)
+				buff.WriteInt(v3) // write table index
 			} else {
-				buff.WriteString(z) // write string
+				buff.WriteString(v1) // write string
 			}
-
 		}
 		// --- [end][write][map](map[string]string) ---
-
 	}
 	// --- [end][write][alias](AssetLabels) ---
 	if target.properties == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 		// --- [begin][write][struct](AssetProperties) ---
 		buff.WriteInt(0) // [compatibility, unused]
-		errA := target.properties.MarshalBinaryWithContext(ctx)
-		if errA != nil {
-			return errA
+		v4 := target.properties.MarshalBinaryWithContext(ctx)
+		if v4 != nil {
+			return v4
 		}
 		// --- [end][write][struct](AssetProperties) ---
-
 	}
-
 	// --- [begin][write][reference](time.Time) ---
-	c, errB := target.start.MarshalBinary()
-	if errB != nil {
-		return errB
+	v5, v6 := target.start.MarshalBinary()
+	if v6 != nil {
+		return v6
 	}
-	buff.WriteInt(len(c))
-	buff.WriteBytes(c)
+	buff.WriteInt(len(v5))
+	buff.WriteBytes(v5)
 	// --- [end][write][reference](time.Time) ---
-
 	// --- [begin][write][reference](time.Time) ---
-	d, errC := target.end.MarshalBinary()
-	if errC != nil {
-		return errC
+	v7, v8 := target.end.MarshalBinary()
+	if v8 != nil {
+		return v8
 	}
-	buff.WriteInt(len(d))
-	buff.WriteBytes(d)
+	buff.WriteInt(len(v7))
+	buff.WriteBytes(v7)
 	// --- [end][write][reference](time.Time) ---
-
 	// --- [begin][write][struct](Window) ---
 	buff.WriteInt(0) // [compatibility, unused]
-	errD := target.window.MarshalBinaryWithContext(ctx)
-	if errD != nil {
-		return errD
+	v9 := target.window.MarshalBinaryWithContext(ctx)
+	if v9 != nil {
+		return v9
 	}
 	// --- [end][write][struct](Window) ---
-
-	buff.WriteFloat64(target.adjustment) // write float64
-
-	buff.WriteFloat64(target.Cost) // write float64
-
-	buff.WriteFloat64(target.Credit) // write float64
+	buff.WriteFloat64(target.adjustment)
+	buff.WriteFloat64(target.Cost)
+	buff.WriteFloat64(target.Credit)
 
 	return nil
 }
@@ -3750,103 +3387,96 @@ func (target *Cloud) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error
 		return fmt.Errorf("Invalid Version Unmarshalling Cloud. Expected %d or less, got %d", AssetsCodecVersion, version)
 	}
 
+	var v0 AssetLabels
 	// --- [begin][read][alias](AssetLabels) ---
-	var a map[string]string
+	var v1 map[string]string
 	if buff.ReadUInt8() == uint8(0) {
-		a = nil
+		v1 = nil
 	} else {
 		// --- [begin][read][map](map[string]string) ---
-		c := buff.ReadInt() // map len
-		b := make(map[string]string, c)
-		for range c {
-			var v string
-			var e string
+		v2 := buff.ReadInt() // map len
+		v1 = make(map[string]string, v2)
+		for range v2 {
+			var v3 string
 			if ctx.IsStringTable() {
-				f := buff.ReadInt() // read string index
-				e = ctx.Table.At(f)
+				v4 := buff.ReadInt() // read string index
+				v3 = ctx.Table.At(v4)
 			} else {
-				e = buff.ReadString() // read string
+				v3 = buff.ReadString() // read string
 			}
-			d := e
-			v = d
-
-			var z string
-			var h string
+			var v5 string
 			if ctx.IsStringTable() {
-				l := buff.ReadInt() // read string index
-				h = ctx.Table.At(l)
+				v6 := buff.ReadInt() // read string index
+				v5 = ctx.Table.At(v6)
 			} else {
-				h = buff.ReadString() // read string
+				v5 = buff.ReadString() // read string
 			}
-			g := h
-			z = g
-
-			b[v] = z
+			v1[v3] = v5
 		}
-		a = b
 		// --- [end][read][map](map[string]string) ---
-
 	}
-
-	target.labels = AssetLabels(a)
+	v0 = AssetLabels(v1)
 	// --- [end][read][alias](AssetLabels) ---
-
+	target.labels = v0
+	var v7 *AssetProperties
 	if buff.ReadUInt8() == uint8(0) {
-		target.properties = nil
+		v7 = nil
 	} else {
-
 		// --- [begin][read][struct](AssetProperties) ---
-		m := new(AssetProperties)
+		v8 := new(AssetProperties)
 		buff.ReadInt() // [compatibility, unused]
-		errA := m.UnmarshalBinaryWithContext(ctx)
-		if errA != nil {
-			return errA
+		v9 := v8.UnmarshalBinaryWithContext(ctx)
+		if v9 != nil {
+			return v9
 		}
-		target.properties = m
+		v7 = v8
 		// --- [end][read][struct](AssetProperties) ---
-
 	}
-
+	target.properties = v7
+	var v10 time.Time
 	// --- [begin][read][reference](time.Time) ---
-	n := new(time.Time)
-	o := buff.ReadInt() // byte array length
-	p := buff.ReadBytes(o)
-	errB := n.UnmarshalBinary(p)
-	if errB != nil {
-		return errB
+	v11 := new(time.Time)
+	v12 := buff.ReadInt() // byte array length
+	v13 := buff.ReadBytes(v12)
+	v14 := v11.UnmarshalBinary(v13)
+	if v14 != nil {
+		return v14
 	}
-	target.start = *n
+	v10 = *v11
 	// --- [end][read][reference](time.Time) ---
-
+	target.start = v10
+	var v15 time.Time
 	// --- [begin][read][reference](time.Time) ---
-	q := new(time.Time)
-	r := buff.ReadInt() // byte array length
-	s := buff.ReadBytes(r)
-	errC := q.UnmarshalBinary(s)
-	if errC != nil {
-		return errC
+	v16 := new(time.Time)
+	v17 := buff.ReadInt() // byte array length
+	v18 := buff.ReadBytes(v17)
+	v19 := v16.UnmarshalBinary(v18)
+	if v19 != nil {
+		return v19
 	}
-	target.end = *q
+	v15 = *v16
 	// --- [end][read][reference](time.Time) ---
-
+	target.end = v15
+	var v20 Window
 	// --- [begin][read][struct](Window) ---
-	t := new(Window)
+	v21 := new(Window)
 	buff.ReadInt() // [compatibility, unused]
-	errD := t.UnmarshalBinaryWithContext(ctx)
-	if errD != nil {
-		return errD
+	v22 := v21.UnmarshalBinaryWithContext(ctx)
+	if v22 != nil {
+		return v22
 	}
-	target.window = *t
+	v20 = *v21
 	// --- [end][read][struct](Window) ---
-
-	u := buff.ReadFloat64() // read float64
-	target.adjustment = u
-
-	w := buff.ReadFloat64() // read float64
-	target.Cost = w
-
-	x := buff.ReadFloat64() // read float64
-	target.Credit = x
+	target.window = v20
+	var v23 float64
+	v23 = buff.ReadFloat64()
+	target.adjustment = v23
+	var v24 float64
+	v24 = buff.ReadFloat64()
+	target.Cost = v24
+	var v25 float64
+	v25 = buff.ReadFloat64()
+	target.Credit = v25
 
 	return nil
 }
@@ -3903,53 +3533,45 @@ func (target *ClusterManagement) MarshalBinaryWithContext(ctx *EncodingContext) 
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 		// --- [begin][write][map](map[string]string) ---
 		buff.WriteInt(len(map[string]string(target.labels))) // map length
-		for v, z := range map[string]string(target.labels) {
+		for v0, v1 := range map[string]string(target.labels) {
 			if ctx.IsStringTable() {
-				a := ctx.Table.AddOrGet(v)
-				buff.WriteInt(a) // write table index
+				v2 := ctx.Table.AddOrGet(v0)
+				buff.WriteInt(v2) // write table index
 			} else {
-				buff.WriteString(v) // write string
+				buff.WriteString(v0) // write string
 			}
-
 			if ctx.IsStringTable() {
-				b := ctx.Table.AddOrGet(z)
-				buff.WriteInt(b) // write table index
+				v3 := ctx.Table.AddOrGet(v1)
+				buff.WriteInt(v3) // write table index
 			} else {
-				buff.WriteString(z) // write string
+				buff.WriteString(v1) // write string
 			}
-
 		}
 		// --- [end][write][map](map[string]string) ---
-
 	}
 	// --- [end][write][alias](AssetLabels) ---
 	if target.properties == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 		// --- [begin][write][struct](AssetProperties) ---
 		buff.WriteInt(0) // [compatibility, unused]
-		errA := target.properties.MarshalBinaryWithContext(ctx)
-		if errA != nil {
-			return errA
+		v4 := target.properties.MarshalBinaryWithContext(ctx)
+		if v4 != nil {
+			return v4
 		}
 		// --- [end][write][struct](AssetProperties) ---
-
 	}
-
 	// --- [begin][write][struct](Window) ---
 	buff.WriteInt(0) // [compatibility, unused]
-	errB := target.window.MarshalBinaryWithContext(ctx)
-	if errB != nil {
-		return errB
+	v5 := target.window.MarshalBinaryWithContext(ctx)
+	if v5 != nil {
+		return v5
 	}
 	// --- [end][write][struct](Window) ---
-
-	buff.WriteFloat64(target.Cost) // write float64
+	buff.WriteFloat64(target.Cost)
 
 	return nil
 }
@@ -4005,75 +3627,66 @@ func (target *ClusterManagement) UnmarshalBinaryWithContext(ctx *DecodingContext
 		return fmt.Errorf("Invalid Version Unmarshalling ClusterManagement. Expected %d or less, got %d", AssetsCodecVersion, version)
 	}
 
+	var v0 AssetLabels
 	// --- [begin][read][alias](AssetLabels) ---
-	var a map[string]string
+	var v1 map[string]string
 	if buff.ReadUInt8() == uint8(0) {
-		a = nil
+		v1 = nil
 	} else {
 		// --- [begin][read][map](map[string]string) ---
-		c := buff.ReadInt() // map len
-		b := make(map[string]string, c)
-		for range c {
-			var v string
-			var e string
+		v2 := buff.ReadInt() // map len
+		v1 = make(map[string]string, v2)
+		for range v2 {
+			var v3 string
 			if ctx.IsStringTable() {
-				f := buff.ReadInt() // read string index
-				e = ctx.Table.At(f)
+				v4 := buff.ReadInt() // read string index
+				v3 = ctx.Table.At(v4)
 			} else {
-				e = buff.ReadString() // read string
+				v3 = buff.ReadString() // read string
 			}
-			d := e
-			v = d
-
-			var z string
-			var h string
+			var v5 string
 			if ctx.IsStringTable() {
-				l := buff.ReadInt() // read string index
-				h = ctx.Table.At(l)
+				v6 := buff.ReadInt() // read string index
+				v5 = ctx.Table.At(v6)
 			} else {
-				h = buff.ReadString() // read string
+				v5 = buff.ReadString() // read string
 			}
-			g := h
-			z = g
-
-			b[v] = z
+			v1[v3] = v5
 		}
-		a = b
 		// --- [end][read][map](map[string]string) ---
-
 	}
-
-	target.labels = AssetLabels(a)
+	v0 = AssetLabels(v1)
 	// --- [end][read][alias](AssetLabels) ---
-
+	target.labels = v0
+	var v7 *AssetProperties
 	if buff.ReadUInt8() == uint8(0) {
-		target.properties = nil
+		v7 = nil
 	} else {
-
 		// --- [begin][read][struct](AssetProperties) ---
-		m := new(AssetProperties)
+		v8 := new(AssetProperties)
 		buff.ReadInt() // [compatibility, unused]
-		errA := m.UnmarshalBinaryWithContext(ctx)
-		if errA != nil {
-			return errA
+		v9 := v8.UnmarshalBinaryWithContext(ctx)
+		if v9 != nil {
+			return v9
 		}
-		target.properties = m
+		v7 = v8
 		// --- [end][read][struct](AssetProperties) ---
-
 	}
-
+	target.properties = v7
+	var v10 Window
 	// --- [begin][read][struct](Window) ---
-	n := new(Window)
+	v11 := new(Window)
 	buff.ReadInt() // [compatibility, unused]
-	errB := n.UnmarshalBinaryWithContext(ctx)
-	if errB != nil {
-		return errB
+	v12 := v11.UnmarshalBinaryWithContext(ctx)
+	if v12 != nil {
+		return v12
 	}
-	target.window = *n
+	v10 = *v11
 	// --- [end][read][struct](Window) ---
-
-	o := buff.ReadFloat64() // read float64
-	target.Cost = o
+	target.window = v10
+	var v13 float64
+	v13 = buff.ReadFloat64()
+	target.Cost = v13
 
 	return nil
 }
@@ -4130,91 +3743,75 @@ func (target *Disk) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 		// --- [begin][write][map](map[string]string) ---
 		buff.WriteInt(len(map[string]string(target.labels))) // map length
-		for v, z := range map[string]string(target.labels) {
+		for v0, v1 := range map[string]string(target.labels) {
 			if ctx.IsStringTable() {
-				a := ctx.Table.AddOrGet(v)
-				buff.WriteInt(a) // write table index
+				v2 := ctx.Table.AddOrGet(v0)
+				buff.WriteInt(v2) // write table index
 			} else {
-				buff.WriteString(v) // write string
+				buff.WriteString(v0) // write string
 			}
-
 			if ctx.IsStringTable() {
-				b := ctx.Table.AddOrGet(z)
-				buff.WriteInt(b) // write table index
+				v3 := ctx.Table.AddOrGet(v1)
+				buff.WriteInt(v3) // write table index
 			} else {
-				buff.WriteString(z) // write string
+				buff.WriteString(v1) // write string
 			}
-
 		}
 		// --- [end][write][map](map[string]string) ---
-
 	}
 	// --- [end][write][alias](AssetLabels) ---
 	if target.properties == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 		// --- [begin][write][struct](AssetProperties) ---
 		buff.WriteInt(0) // [compatibility, unused]
-		errA := target.properties.MarshalBinaryWithContext(ctx)
-		if errA != nil {
-			return errA
+		v4 := target.properties.MarshalBinaryWithContext(ctx)
+		if v4 != nil {
+			return v4
 		}
 		// --- [end][write][struct](AssetProperties) ---
-
 	}
-
 	// --- [begin][write][reference](time.Time) ---
-	c, errB := target.start.MarshalBinary()
-	if errB != nil {
-		return errB
+	v5, v6 := target.start.MarshalBinary()
+	if v6 != nil {
+		return v6
 	}
-	buff.WriteInt(len(c))
-	buff.WriteBytes(c)
+	buff.WriteInt(len(v5))
+	buff.WriteBytes(v5)
 	// --- [end][write][reference](time.Time) ---
-
 	// --- [begin][write][reference](time.Time) ---
-	d, errC := target.end.MarshalBinary()
-	if errC != nil {
-		return errC
+	v7, v8 := target.end.MarshalBinary()
+	if v8 != nil {
+		return v8
 	}
-	buff.WriteInt(len(d))
-	buff.WriteBytes(d)
+	buff.WriteInt(len(v7))
+	buff.WriteBytes(v7)
 	// --- [end][write][reference](time.Time) ---
-
 	// --- [begin][write][struct](Window) ---
 	buff.WriteInt(0) // [compatibility, unused]
-	errD := target.window.MarshalBinaryWithContext(ctx)
-	if errD != nil {
-		return errD
+	v9 := target.window.MarshalBinaryWithContext(ctx)
+	if v9 != nil {
+		return v9
 	}
 	// --- [end][write][struct](Window) ---
-
-	buff.WriteFloat64(target.adjustment) // write float64
-
-	buff.WriteFloat64(target.Cost) // write float64
-
-	buff.WriteFloat64(target.ByteHours) // write float64
-
-	buff.WriteFloat64(target.Local) // write float64
-
+	buff.WriteFloat64(target.adjustment)
+	buff.WriteFloat64(target.Cost)
+	buff.WriteFloat64(target.ByteHours)
+	buff.WriteFloat64(target.Local)
 	if target.Breakdown == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 		// --- [begin][write][struct](Breakdown) ---
 		buff.WriteInt(0) // [compatibility, unused]
-		errE := target.Breakdown.MarshalBinaryWithContext(ctx)
-		if errE != nil {
-			return errE
+		v10 := target.Breakdown.MarshalBinaryWithContext(ctx)
+		if v10 != nil {
+			return v10
 		}
 		// --- [end][write][struct](Breakdown) ---
-
 	}
 
 	return nil
@@ -4271,122 +3868,114 @@ func (target *Disk) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error)
 		return fmt.Errorf("Invalid Version Unmarshalling Disk. Expected %d or less, got %d", AssetsCodecVersion, version)
 	}
 
+	var v0 AssetLabels
 	// --- [begin][read][alias](AssetLabels) ---
-	var a map[string]string
+	var v1 map[string]string
 	if buff.ReadUInt8() == uint8(0) {
-		a = nil
+		v1 = nil
 	} else {
 		// --- [begin][read][map](map[string]string) ---
-		c := buff.ReadInt() // map len
-		b := make(map[string]string, c)
-		for range c {
-			var v string
-			var e string
+		v2 := buff.ReadInt() // map len
+		v1 = make(map[string]string, v2)
+		for range v2 {
+			var v3 string
 			if ctx.IsStringTable() {
-				f := buff.ReadInt() // read string index
-				e = ctx.Table.At(f)
+				v4 := buff.ReadInt() // read string index
+				v3 = ctx.Table.At(v4)
 			} else {
-				e = buff.ReadString() // read string
+				v3 = buff.ReadString() // read string
 			}
-			d := e
-			v = d
-
-			var z string
-			var h string
+			var v5 string
 			if ctx.IsStringTable() {
-				l := buff.ReadInt() // read string index
-				h = ctx.Table.At(l)
+				v6 := buff.ReadInt() // read string index
+				v5 = ctx.Table.At(v6)
 			} else {
-				h = buff.ReadString() // read string
+				v5 = buff.ReadString() // read string
 			}
-			g := h
-			z = g
-
-			b[v] = z
+			v1[v3] = v5
 		}
-		a = b
 		// --- [end][read][map](map[string]string) ---
-
 	}
-
-	target.labels = AssetLabels(a)
+	v0 = AssetLabels(v1)
 	// --- [end][read][alias](AssetLabels) ---
-
+	target.labels = v0
+	var v7 *AssetProperties
 	if buff.ReadUInt8() == uint8(0) {
-		target.properties = nil
+		v7 = nil
 	} else {
-
 		// --- [begin][read][struct](AssetProperties) ---
-		m := new(AssetProperties)
+		v8 := new(AssetProperties)
 		buff.ReadInt() // [compatibility, unused]
-		errA := m.UnmarshalBinaryWithContext(ctx)
-		if errA != nil {
-			return errA
+		v9 := v8.UnmarshalBinaryWithContext(ctx)
+		if v9 != nil {
+			return v9
 		}
-		target.properties = m
+		v7 = v8
 		// --- [end][read][struct](AssetProperties) ---
-
 	}
-
+	target.properties = v7
+	var v10 time.Time
 	// --- [begin][read][reference](time.Time) ---
-	n := new(time.Time)
-	o := buff.ReadInt() // byte array length
-	p := buff.ReadBytes(o)
-	errB := n.UnmarshalBinary(p)
-	if errB != nil {
-		return errB
+	v11 := new(time.Time)
+	v12 := buff.ReadInt() // byte array length
+	v13 := buff.ReadBytes(v12)
+	v14 := v11.UnmarshalBinary(v13)
+	if v14 != nil {
+		return v14
 	}
-	target.start = *n
+	v10 = *v11
 	// --- [end][read][reference](time.Time) ---
-
+	target.start = v10
+	var v15 time.Time
 	// --- [begin][read][reference](time.Time) ---
-	q := new(time.Time)
-	r := buff.ReadInt() // byte array length
-	s := buff.ReadBytes(r)
-	errC := q.UnmarshalBinary(s)
-	if errC != nil {
-		return errC
+	v16 := new(time.Time)
+	v17 := buff.ReadInt() // byte array length
+	v18 := buff.ReadBytes(v17)
+	v19 := v16.UnmarshalBinary(v18)
+	if v19 != nil {
+		return v19
 	}
-	target.end = *q
+	v15 = *v16
 	// --- [end][read][reference](time.Time) ---
-
+	target.end = v15
+	var v20 Window
 	// --- [begin][read][struct](Window) ---
-	t := new(Window)
+	v21 := new(Window)
 	buff.ReadInt() // [compatibility, unused]
-	errD := t.UnmarshalBinaryWithContext(ctx)
-	if errD != nil {
-		return errD
+	v22 := v21.UnmarshalBinaryWithContext(ctx)
+	if v22 != nil {
+		return v22
 	}
-	target.window = *t
+	v20 = *v21
 	// --- [end][read][struct](Window) ---
-
-	u := buff.ReadFloat64() // read float64
-	target.adjustment = u
-
-	w := buff.ReadFloat64() // read float64
-	target.Cost = w
-
-	x := buff.ReadFloat64() // read float64
-	target.ByteHours = x
-
-	y := buff.ReadFloat64() // read float64
-	target.Local = y
-
+	target.window = v20
+	var v23 float64
+	v23 = buff.ReadFloat64()
+	target.adjustment = v23
+	var v24 float64
+	v24 = buff.ReadFloat64()
+	target.Cost = v24
+	var v25 float64
+	v25 = buff.ReadFloat64()
+	target.ByteHours = v25
+	var v26 float64
+	v26 = buff.ReadFloat64()
+	target.Local = v26
+	var v27 *Breakdown
 	if buff.ReadUInt8() == uint8(0) {
-		target.Breakdown = nil
+		v27 = nil
 	} else {
-
 		// --- [begin][read][struct](Breakdown) ---
-		aa := new(Breakdown)
+		v28 := new(Breakdown)
 		buff.ReadInt() // [compatibility, unused]
-		errE := aa.UnmarshalBinaryWithContext(ctx)
-		if errE != nil {
-			return errE
+		v29 := v28.UnmarshalBinaryWithContext(ctx)
+		if v29 != nil {
+			return v29
 		}
-		target.Breakdown = aa
+		v27 = v28
 		// --- [end][read][struct](Breakdown) ---
-
 	}
+	target.Breakdown = v27
 
 	return nil
 }
@@ -4442,75 +4031,63 @@ func (target *LoadBalancer) MarshalBinaryWithContext(ctx *EncodingContext) (err 
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 		// --- [begin][write][struct](AssetProperties) ---
 		buff.WriteInt(0) // [compatibility, unused]
-		errA := target.properties.MarshalBinaryWithContext(ctx)
-		if errA != nil {
-			return errA
+		v0 := target.properties.MarshalBinaryWithContext(ctx)
+		if v0 != nil {
+			return v0
 		}
 		// --- [end][write][struct](AssetProperties) ---
-
 	}
-
 	// --- [begin][write][alias](AssetLabels) ---
 	if map[string]string(target.labels) == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 		// --- [begin][write][map](map[string]string) ---
 		buff.WriteInt(len(map[string]string(target.labels))) // map length
-		for v, z := range map[string]string(target.labels) {
+		for v1, v2 := range map[string]string(target.labels) {
 			if ctx.IsStringTable() {
-				a := ctx.Table.AddOrGet(v)
-				buff.WriteInt(a) // write table index
+				v3 := ctx.Table.AddOrGet(v1)
+				buff.WriteInt(v3) // write table index
 			} else {
-				buff.WriteString(v) // write string
+				buff.WriteString(v1) // write string
 			}
-
 			if ctx.IsStringTable() {
-				b := ctx.Table.AddOrGet(z)
-				buff.WriteInt(b) // write table index
+				v4 := ctx.Table.AddOrGet(v2)
+				buff.WriteInt(v4) // write table index
 			} else {
-				buff.WriteString(z) // write string
+				buff.WriteString(v2) // write string
 			}
-
 		}
 		// --- [end][write][map](map[string]string) ---
-
 	}
 	// --- [end][write][alias](AssetLabels) ---
-
 	// --- [begin][write][reference](time.Time) ---
-	c, errB := target.start.MarshalBinary()
-	if errB != nil {
-		return errB
+	v5, v6 := target.start.MarshalBinary()
+	if v6 != nil {
+		return v6
 	}
-	buff.WriteInt(len(c))
-	buff.WriteBytes(c)
+	buff.WriteInt(len(v5))
+	buff.WriteBytes(v5)
 	// --- [end][write][reference](time.Time) ---
-
 	// --- [begin][write][reference](time.Time) ---
-	d, errC := target.end.MarshalBinary()
-	if errC != nil {
-		return errC
+	v7, v8 := target.end.MarshalBinary()
+	if v8 != nil {
+		return v8
 	}
-	buff.WriteInt(len(d))
-	buff.WriteBytes(d)
+	buff.WriteInt(len(v7))
+	buff.WriteBytes(v7)
 	// --- [end][write][reference](time.Time) ---
-
 	// --- [begin][write][struct](Window) ---
 	buff.WriteInt(0) // [compatibility, unused]
-	errD := target.window.MarshalBinaryWithContext(ctx)
-	if errD != nil {
-		return errD
+	v9 := target.window.MarshalBinaryWithContext(ctx)
+	if v9 != nil {
+		return v9
 	}
 	// --- [end][write][struct](Window) ---
-
-	buff.WriteFloat64(target.adjustment) // write float64
-
-	buff.WriteFloat64(target.Cost) // write float64
+	buff.WriteFloat64(target.adjustment)
+	buff.WriteFloat64(target.Cost)
 
 	return nil
 }
@@ -4566,100 +4143,93 @@ func (target *LoadBalancer) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 		return fmt.Errorf("Invalid Version Unmarshalling LoadBalancer. Expected %d or less, got %d", AssetsCodecVersion, version)
 	}
 
+	var v0 *AssetProperties
 	if buff.ReadUInt8() == uint8(0) {
-		target.properties = nil
+		v0 = nil
 	} else {
-
 		// --- [begin][read][struct](AssetProperties) ---
-		a := new(AssetProperties)
+		v1 := new(AssetProperties)
 		buff.ReadInt() // [compatibility, unused]
-		errA := a.UnmarshalBinaryWithContext(ctx)
-		if errA != nil {
-			return errA
+		v2 := v1.UnmarshalBinaryWithContext(ctx)
+		if v2 != nil {
+			return v2
 		}
-		target.properties = a
+		v0 = v1
 		// --- [end][read][struct](AssetProperties) ---
-
 	}
-
+	target.properties = v0
+	var v3 AssetLabels
 	// --- [begin][read][alias](AssetLabels) ---
-	var b map[string]string
+	var v4 map[string]string
 	if buff.ReadUInt8() == uint8(0) {
-		b = nil
+		v4 = nil
 	} else {
 		// --- [begin][read][map](map[string]string) ---
-		d := buff.ReadInt() // map len
-		c := make(map[string]string, d)
-		for range d {
-			var v string
-			var f string
+		v5 := buff.ReadInt() // map len
+		v4 = make(map[string]string, v5)
+		for range v5 {
+			var v6 string
 			if ctx.IsStringTable() {
-				g := buff.ReadInt() // read string index
-				f = ctx.Table.At(g)
+				v7 := buff.ReadInt() // read string index
+				v6 = ctx.Table.At(v7)
 			} else {
-				f = buff.ReadString() // read string
+				v6 = buff.ReadString() // read string
 			}
-			e := f
-			v = e
-
-			var z string
-			var l string
+			var v8 string
 			if ctx.IsStringTable() {
-				m := buff.ReadInt() // read string index
-				l = ctx.Table.At(m)
+				v9 := buff.ReadInt() // read string index
+				v8 = ctx.Table.At(v9)
 			} else {
-				l = buff.ReadString() // read string
+				v8 = buff.ReadString() // read string
 			}
-			h := l
-			z = h
-
-			c[v] = z
+			v4[v6] = v8
 		}
-		b = c
 		// --- [end][read][map](map[string]string) ---
-
 	}
-
-	target.labels = AssetLabels(b)
+	v3 = AssetLabels(v4)
 	// --- [end][read][alias](AssetLabels) ---
-
+	target.labels = v3
+	var v10 time.Time
 	// --- [begin][read][reference](time.Time) ---
-	n := new(time.Time)
-	o := buff.ReadInt() // byte array length
-	p := buff.ReadBytes(o)
-	errB := n.UnmarshalBinary(p)
-	if errB != nil {
-		return errB
+	v11 := new(time.Time)
+	v12 := buff.ReadInt() // byte array length
+	v13 := buff.ReadBytes(v12)
+	v14 := v11.UnmarshalBinary(v13)
+	if v14 != nil {
+		return v14
 	}
-	target.start = *n
+	v10 = *v11
 	// --- [end][read][reference](time.Time) ---
-
+	target.start = v10
+	var v15 time.Time
 	// --- [begin][read][reference](time.Time) ---
-	q := new(time.Time)
-	r := buff.ReadInt() // byte array length
-	s := buff.ReadBytes(r)
-	errC := q.UnmarshalBinary(s)
-	if errC != nil {
-		return errC
+	v16 := new(time.Time)
+	v17 := buff.ReadInt() // byte array length
+	v18 := buff.ReadBytes(v17)
+	v19 := v16.UnmarshalBinary(v18)
+	if v19 != nil {
+		return v19
 	}
-	target.end = *q
+	v15 = *v16
 	// --- [end][read][reference](time.Time) ---
-
+	target.end = v15
+	var v20 Window
 	// --- [begin][read][struct](Window) ---
-	t := new(Window)
+	v21 := new(Window)
 	buff.ReadInt() // [compatibility, unused]
-	errD := t.UnmarshalBinaryWithContext(ctx)
-	if errD != nil {
-		return errD
+	v22 := v21.UnmarshalBinaryWithContext(ctx)
+	if v22 != nil {
+		return v22
 	}
-	target.window = *t
+	v20 = *v21
 	// --- [end][read][struct](Window) ---
-
-	u := buff.ReadFloat64() // read float64
-	target.adjustment = u
-
-	w := buff.ReadFloat64() // read float64
-	target.Cost = w
+	target.window = v20
+	var v23 float64
+	v23 = buff.ReadFloat64()
+	target.adjustment = v23
+	var v24 float64
+	v24 = buff.ReadFloat64()
+	target.Cost = v24
 
 	return nil
 }
@@ -4715,75 +4285,63 @@ func (target *Network) MarshalBinaryWithContext(ctx *EncodingContext) (err error
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 		// --- [begin][write][struct](AssetProperties) ---
 		buff.WriteInt(0) // [compatibility, unused]
-		errA := target.properties.MarshalBinaryWithContext(ctx)
-		if errA != nil {
-			return errA
+		v0 := target.properties.MarshalBinaryWithContext(ctx)
+		if v0 != nil {
+			return v0
 		}
 		// --- [end][write][struct](AssetProperties) ---
-
 	}
-
 	// --- [begin][write][alias](AssetLabels) ---
 	if map[string]string(target.labels) == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 		// --- [begin][write][map](map[string]string) ---
 		buff.WriteInt(len(map[string]string(target.labels))) // map length
-		for v, z := range map[string]string(target.labels) {
+		for v1, v2 := range map[string]string(target.labels) {
 			if ctx.IsStringTable() {
-				a := ctx.Table.AddOrGet(v)
-				buff.WriteInt(a) // write table index
+				v3 := ctx.Table.AddOrGet(v1)
+				buff.WriteInt(v3) // write table index
 			} else {
-				buff.WriteString(v) // write string
+				buff.WriteString(v1) // write string
 			}
-
 			if ctx.IsStringTable() {
-				b := ctx.Table.AddOrGet(z)
-				buff.WriteInt(b) // write table index
+				v4 := ctx.Table.AddOrGet(v2)
+				buff.WriteInt(v4) // write table index
 			} else {
-				buff.WriteString(z) // write string
+				buff.WriteString(v2) // write string
 			}
-
 		}
 		// --- [end][write][map](map[string]string) ---
-
 	}
 	// --- [end][write][alias](AssetLabels) ---
-
 	// --- [begin][write][reference](time.Time) ---
-	c, errB := target.start.MarshalBinary()
-	if errB != nil {
-		return errB
+	v5, v6 := target.start.MarshalBinary()
+	if v6 != nil {
+		return v6
 	}
-	buff.WriteInt(len(c))
-	buff.WriteBytes(c)
+	buff.WriteInt(len(v5))
+	buff.WriteBytes(v5)
 	// --- [end][write][reference](time.Time) ---
-
 	// --- [begin][write][reference](time.Time) ---
-	d, errC := target.end.MarshalBinary()
-	if errC != nil {
-		return errC
+	v7, v8 := target.end.MarshalBinary()
+	if v8 != nil {
+		return v8
 	}
-	buff.WriteInt(len(d))
-	buff.WriteBytes(d)
+	buff.WriteInt(len(v7))
+	buff.WriteBytes(v7)
 	// --- [end][write][reference](time.Time) ---
-
 	// --- [begin][write][struct](Window) ---
 	buff.WriteInt(0) // [compatibility, unused]
-	errD := target.window.MarshalBinaryWithContext(ctx)
-	if errD != nil {
-		return errD
+	v9 := target.window.MarshalBinaryWithContext(ctx)
+	if v9 != nil {
+		return v9
 	}
 	// --- [end][write][struct](Window) ---
-
-	buff.WriteFloat64(target.adjustment) // write float64
-
-	buff.WriteFloat64(target.Cost) // write float64
+	buff.WriteFloat64(target.adjustment)
+	buff.WriteFloat64(target.Cost)
 
 	return nil
 }
@@ -4839,100 +4397,93 @@ func (target *Network) UnmarshalBinaryWithContext(ctx *DecodingContext) (err err
 		return fmt.Errorf("Invalid Version Unmarshalling Network. Expected %d or less, got %d", AssetsCodecVersion, version)
 	}
 
+	var v0 *AssetProperties
 	if buff.ReadUInt8() == uint8(0) {
-		target.properties = nil
+		v0 = nil
 	} else {
-
 		// --- [begin][read][struct](AssetProperties) ---
-		a := new(AssetProperties)
+		v1 := new(AssetProperties)
 		buff.ReadInt() // [compatibility, unused]
-		errA := a.UnmarshalBinaryWithContext(ctx)
-		if errA != nil {
-			return errA
+		v2 := v1.UnmarshalBinaryWithContext(ctx)
+		if v2 != nil {
+			return v2
 		}
-		target.properties = a
+		v0 = v1
 		// --- [end][read][struct](AssetProperties) ---
-
 	}
-
+	target.properties = v0
+	var v3 AssetLabels
 	// --- [begin][read][alias](AssetLabels) ---
-	var b map[string]string
+	var v4 map[string]string
 	if buff.ReadUInt8() == uint8(0) {
-		b = nil
+		v4 = nil
 	} else {
 		// --- [begin][read][map](map[string]string) ---
-		d := buff.ReadInt() // map len
-		c := make(map[string]string, d)
-		for range d {
-			var v string
-			var f string
+		v5 := buff.ReadInt() // map len
+		v4 = make(map[string]string, v5)
+		for range v5 {
+			var v6 string
 			if ctx.IsStringTable() {
-				g := buff.ReadInt() // read string index
-				f = ctx.Table.At(g)
+				v7 := buff.ReadInt() // read string index
+				v6 = ctx.Table.At(v7)
 			} else {
-				f = buff.ReadString() // read string
+				v6 = buff.ReadString() // read string
 			}
-			e := f
-			v = e
-
-			var z string
-			var l string
+			var v8 string
 			if ctx.IsStringTable() {
-				m := buff.ReadInt() // read string index
-				l = ctx.Table.At(m)
+				v9 := buff.ReadInt() // read string index
+				v8 = ctx.Table.At(v9)
 			} else {
-				l = buff.ReadString() // read string
+				v8 = buff.ReadString() // read string
 			}
-			h := l
-			z = h
-
-			c[v] = z
+			v4[v6] = v8
 		}
-		b = c
 		// --- [end][read][map](map[string]string) ---
-
 	}
-
-	target.labels = AssetLabels(b)
+	v3 = AssetLabels(v4)
 	// --- [end][read][alias](AssetLabels) ---
-
+	target.labels = v3
+	var v10 time.Time
 	// --- [begin][read][reference](time.Time) ---
-	n := new(time.Time)
-	o := buff.ReadInt() // byte array length
-	p := buff.ReadBytes(o)
-	errB := n.UnmarshalBinary(p)
-	if errB != nil {
-		return errB
+	v11 := new(time.Time)
+	v12 := buff.ReadInt() // byte array length
+	v13 := buff.ReadBytes(v12)
+	v14 := v11.UnmarshalBinary(v13)
+	if v14 != nil {
+		return v14
 	}
-	target.start = *n
+	v10 = *v11
 	// --- [end][read][reference](time.Time) ---
-
+	target.start = v10
+	var v15 time.Time
 	// --- [begin][read][reference](time.Time) ---
-	q := new(time.Time)
-	r := buff.ReadInt() // byte array length
-	s := buff.ReadBytes(r)
-	errC := q.UnmarshalBinary(s)
-	if errC != nil {
-		return errC
+	v16 := new(time.Time)
+	v17 := buff.ReadInt() // byte array length
+	v18 := buff.ReadBytes(v17)
+	v19 := v16.UnmarshalBinary(v18)
+	if v19 != nil {
+		return v19
 	}
-	target.end = *q
+	v15 = *v16
 	// --- [end][read][reference](time.Time) ---
-
+	target.end = v15
+	var v20 Window
 	// --- [begin][read][struct](Window) ---
-	t := new(Window)
+	v21 := new(Window)
 	buff.ReadInt() // [compatibility, unused]
-	errD := t.UnmarshalBinaryWithContext(ctx)
-	if errD != nil {
-		return errD
+	v22 := v21.UnmarshalBinaryWithContext(ctx)
+	if v22 != nil {
+		return v22
 	}
-	target.window = *t
+	v20 = *v21
 	// --- [end][read][struct](Window) ---
-
-	u := buff.ReadFloat64() // read float64
-	target.adjustment = u
-
-	w := buff.ReadFloat64() // read float64
-	target.Cost = w
+	target.window = v20
+	var v23 float64
+	v23 = buff.ReadFloat64()
+	target.adjustment = v23
+	var v24 float64
+	v24 = buff.ReadFloat64()
+	target.Cost = v24
 
 	return nil
 }
@@ -4988,127 +4539,101 @@ func (target *Node) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 		// --- [begin][write][struct](AssetProperties) ---
 		buff.WriteInt(0) // [compatibility, unused]
-		errA := target.properties.MarshalBinaryWithContext(ctx)
-		if errA != nil {
-			return errA
+		v0 := target.properties.MarshalBinaryWithContext(ctx)
+		if v0 != nil {
+			return v0
 		}
 		// --- [end][write][struct](AssetProperties) ---
-
 	}
-
 	// --- [begin][write][alias](AssetLabels) ---
 	if map[string]string(target.labels) == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 		// --- [begin][write][map](map[string]string) ---
 		buff.WriteInt(len(map[string]string(target.labels))) // map length
-		for v, z := range map[string]string(target.labels) {
+		for v1, v2 := range map[string]string(target.labels) {
 			if ctx.IsStringTable() {
-				a := ctx.Table.AddOrGet(v)
-				buff.WriteInt(a) // write table index
+				v3 := ctx.Table.AddOrGet(v1)
+				buff.WriteInt(v3) // write table index
 			} else {
-				buff.WriteString(v) // write string
+				buff.WriteString(v1) // write string
 			}
-
 			if ctx.IsStringTable() {
-				b := ctx.Table.AddOrGet(z)
-				buff.WriteInt(b) // write table index
+				v4 := ctx.Table.AddOrGet(v2)
+				buff.WriteInt(v4) // write table index
 			} else {
-				buff.WriteString(z) // write string
+				buff.WriteString(v2) // write string
 			}
-
 		}
 		// --- [end][write][map](map[string]string) ---
-
 	}
 	// --- [end][write][alias](AssetLabels) ---
-
 	// --- [begin][write][reference](time.Time) ---
-	c, errB := target.start.MarshalBinary()
-	if errB != nil {
-		return errB
+	v5, v6 := target.start.MarshalBinary()
+	if v6 != nil {
+		return v6
 	}
-	buff.WriteInt(len(c))
-	buff.WriteBytes(c)
+	buff.WriteInt(len(v5))
+	buff.WriteBytes(v5)
 	// --- [end][write][reference](time.Time) ---
-
 	// --- [begin][write][reference](time.Time) ---
-	d, errC := target.end.MarshalBinary()
-	if errC != nil {
-		return errC
+	v7, v8 := target.end.MarshalBinary()
+	if v8 != nil {
+		return v8
 	}
-	buff.WriteInt(len(d))
-	buff.WriteBytes(d)
+	buff.WriteInt(len(v7))
+	buff.WriteBytes(v7)
 	// --- [end][write][reference](time.Time) ---
-
 	// --- [begin][write][struct](Window) ---
 	buff.WriteInt(0) // [compatibility, unused]
-	errD := target.window.MarshalBinaryWithContext(ctx)
-	if errD != nil {
-		return errD
+	v9 := target.window.MarshalBinaryWithContext(ctx)
+	if v9 != nil {
+		return v9
 	}
 	// --- [end][write][struct](Window) ---
-
-	buff.WriteFloat64(target.adjustment) // write float64
-
+	buff.WriteFloat64(target.adjustment)
 	if ctx.IsStringTable() {
-		e := ctx.Table.AddOrGet(target.NodeType)
-		buff.WriteInt(e) // write table index
+		v10 := ctx.Table.AddOrGet(target.NodeType)
+		buff.WriteInt(v10) // write table index
 	} else {
 		buff.WriteString(target.NodeType) // write string
 	}
-
-	buff.WriteFloat64(target.CPUCoreHours) // write float64
-
-	buff.WriteFloat64(target.RAMByteHours) // write float64
-
-	buff.WriteFloat64(target.GPUHours) // write float64
-
+	buff.WriteFloat64(target.CPUCoreHours)
+	buff.WriteFloat64(target.RAMByteHours)
+	buff.WriteFloat64(target.GPUHours)
 	if target.CPUBreakdown == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 		// --- [begin][write][struct](Breakdown) ---
 		buff.WriteInt(0) // [compatibility, unused]
-		errE := target.CPUBreakdown.MarshalBinaryWithContext(ctx)
-		if errE != nil {
-			return errE
+		v11 := target.CPUBreakdown.MarshalBinaryWithContext(ctx)
+		if v11 != nil {
+			return v11
 		}
 		// --- [end][write][struct](Breakdown) ---
-
 	}
 	if target.RAMBreakdown == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 		// --- [begin][write][struct](Breakdown) ---
 		buff.WriteInt(0) // [compatibility, unused]
-		errF := target.RAMBreakdown.MarshalBinaryWithContext(ctx)
-		if errF != nil {
-			return errF
+		v12 := target.RAMBreakdown.MarshalBinaryWithContext(ctx)
+		if v12 != nil {
+			return v12
 		}
 		// --- [end][write][struct](Breakdown) ---
-
 	}
-
-	buff.WriteFloat64(target.CPUCost) // write float64
-
-	buff.WriteFloat64(target.GPUCost) // write float64
-
-	buff.WriteFloat64(target.GPUCount) // write float64
-
-	buff.WriteFloat64(target.RAMCost) // write float64
-
-	buff.WriteFloat64(target.Discount) // write float64
-
-	buff.WriteFloat64(target.Preemptible) // write float64
+	buff.WriteFloat64(target.CPUCost)
+	buff.WriteFloat64(target.GPUCost)
+	buff.WriteFloat64(target.GPUCount)
+	buff.WriteFloat64(target.RAMCost)
+	buff.WriteFloat64(target.Discount)
+	buff.WriteFloat64(target.Preemptible)
 
 	return nil
 }
@@ -5164,164 +4689,155 @@ func (target *Node) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error)
 		return fmt.Errorf("Invalid Version Unmarshalling Node. Expected %d or less, got %d", AssetsCodecVersion, version)
 	}
 
+	var v0 *AssetProperties
 	if buff.ReadUInt8() == uint8(0) {
-		target.properties = nil
+		v0 = nil
 	} else {
-
 		// --- [begin][read][struct](AssetProperties) ---
-		a := new(AssetProperties)
+		v1 := new(AssetProperties)
 		buff.ReadInt() // [compatibility, unused]
-		errA := a.UnmarshalBinaryWithContext(ctx)
-		if errA != nil {
-			return errA
+		v2 := v1.UnmarshalBinaryWithContext(ctx)
+		if v2 != nil {
+			return v2
 		}
-		target.properties = a
+		v0 = v1
 		// --- [end][read][struct](AssetProperties) ---
-
 	}
-
+	target.properties = v0
+	var v3 AssetLabels
 	// --- [begin][read][alias](AssetLabels) ---
-	var b map[string]string
+	var v4 map[string]string
 	if buff.ReadUInt8() == uint8(0) {
-		b = nil
+		v4 = nil
 	} else {
 		// --- [begin][read][map](map[string]string) ---
-		d := buff.ReadInt() // map len
-		c := make(map[string]string, d)
-		for range d {
-			var v string
-			var f string
+		v5 := buff.ReadInt() // map len
+		v4 = make(map[string]string, v5)
+		for range v5 {
+			var v6 string
 			if ctx.IsStringTable() {
-				g := buff.ReadInt() // read string index
-				f = ctx.Table.At(g)
+				v7 := buff.ReadInt() // read string index
+				v6 = ctx.Table.At(v7)
 			} else {
-				f = buff.ReadString() // read string
+				v6 = buff.ReadString() // read string
 			}
-			e := f
-			v = e
-
-			var z string
-			var l string
+			var v8 string
 			if ctx.IsStringTable() {
-				m := buff.ReadInt() // read string index
-				l = ctx.Table.At(m)
+				v9 := buff.ReadInt() // read string index
+				v8 = ctx.Table.At(v9)
 			} else {
-				l = buff.ReadString() // read string
+				v8 = buff.ReadString() // read string
 			}
-			h := l
-			z = h
-
-			c[v] = z
+			v4[v6] = v8
 		}
-		b = c
 		// --- [end][read][map](map[string]string) ---
-
 	}
-
-	target.labels = AssetLabels(b)
+	v3 = AssetLabels(v4)
 	// --- [end][read][alias](AssetLabels) ---
-
+	target.labels = v3
+	var v10 time.Time
 	// --- [begin][read][reference](time.Time) ---
-	n := new(time.Time)
-	o := buff.ReadInt() // byte array length
-	p := buff.ReadBytes(o)
-	errB := n.UnmarshalBinary(p)
-	if errB != nil {
-		return errB
+	v11 := new(time.Time)
+	v12 := buff.ReadInt() // byte array length
+	v13 := buff.ReadBytes(v12)
+	v14 := v11.UnmarshalBinary(v13)
+	if v14 != nil {
+		return v14
 	}
-	target.start = *n
+	v10 = *v11
 	// --- [end][read][reference](time.Time) ---
-
+	target.start = v10
+	var v15 time.Time
 	// --- [begin][read][reference](time.Time) ---
-	q := new(time.Time)
-	r := buff.ReadInt() // byte array length
-	s := buff.ReadBytes(r)
-	errC := q.UnmarshalBinary(s)
-	if errC != nil {
-		return errC
+	v16 := new(time.Time)
+	v17 := buff.ReadInt() // byte array length
+	v18 := buff.ReadBytes(v17)
+	v19 := v16.UnmarshalBinary(v18)
+	if v19 != nil {
+		return v19
 	}
-	target.end = *q
+	v15 = *v16
 	// --- [end][read][reference](time.Time) ---
-
+	target.end = v15
+	var v20 Window
 	// --- [begin][read][struct](Window) ---
-	t := new(Window)
+	v21 := new(Window)
 	buff.ReadInt() // [compatibility, unused]
-	errD := t.UnmarshalBinaryWithContext(ctx)
-	if errD != nil {
-		return errD
+	v22 := v21.UnmarshalBinaryWithContext(ctx)
+	if v22 != nil {
+		return v22
 	}
-	target.window = *t
+	v20 = *v21
 	// --- [end][read][struct](Window) ---
-
-	u := buff.ReadFloat64() // read float64
-	target.adjustment = u
-
-	var x string
+	target.window = v20
+	var v23 float64
+	v23 = buff.ReadFloat64()
+	target.adjustment = v23
+	var v24 string
 	if ctx.IsStringTable() {
-		y := buff.ReadInt() // read string index
-		x = ctx.Table.At(y)
+		v25 := buff.ReadInt() // read string index
+		v24 = ctx.Table.At(v25)
 	} else {
-		x = buff.ReadString() // read string
+		v24 = buff.ReadString() // read string
 	}
-	w := x
-	target.NodeType = w
-
-	aa := buff.ReadFloat64() // read float64
-	target.CPUCoreHours = aa
-
-	bb := buff.ReadFloat64() // read float64
-	target.RAMByteHours = bb
-
-	cc := buff.ReadFloat64() // read float64
-	target.GPUHours = cc
-
+	target.NodeType = v24
+	var v26 float64
+	v26 = buff.ReadFloat64()
+	target.CPUCoreHours = v26
+	var v27 float64
+	v27 = buff.ReadFloat64()
+	target.RAMByteHours = v27
+	var v28 float64
+	v28 = buff.ReadFloat64()
+	target.GPUHours = v28
+	var v29 *Breakdown
 	if buff.ReadUInt8() == uint8(0) {
-		target.CPUBreakdown = nil
+		v29 = nil
 	} else {
 		// --- [begin][read][struct](Breakdown) ---
-		dd := new(Breakdown)
+		v30 := new(Breakdown)
 		buff.ReadInt() // [compatibility, unused]
-		errE := dd.UnmarshalBinaryWithContext(ctx)
-		if errE != nil {
-			return errE
+		v31 := v30.UnmarshalBinaryWithContext(ctx)
+		if v31 != nil {
+			return v31
 		}
-		target.CPUBreakdown = dd
+		v29 = v30
 		// --- [end][read][struct](Breakdown) ---
-
 	}
-
+	target.CPUBreakdown = v29
+	var v32 *Breakdown
 	if buff.ReadUInt8() == uint8(0) {
-		target.RAMBreakdown = nil
+		v32 = nil
 	} else {
 		// --- [begin][read][struct](Breakdown) ---
-		ee := new(Breakdown)
+		v33 := new(Breakdown)
 		buff.ReadInt() // [compatibility, unused]
-		errF := ee.UnmarshalBinaryWithContext(ctx)
-		if errF != nil {
-			return errF
+		v34 := v33.UnmarshalBinaryWithContext(ctx)
+		if v34 != nil {
+			return v34
 		}
-		target.RAMBreakdown = ee
+		v32 = v33
 		// --- [end][read][struct](Breakdown) ---
-
 	}
-
-	ff := buff.ReadFloat64() // read float64
-	target.CPUCost = ff
-
-	gg := buff.ReadFloat64() // read float64
-	target.GPUCost = gg
-
-	hh := buff.ReadFloat64() // read float64
-	target.GPUCount = hh
-
-	ll := buff.ReadFloat64() // read float64
-	target.RAMCost = ll
-
-	mm := buff.ReadFloat64() // read float64
-	target.Discount = mm
-
-	nn := buff.ReadFloat64() // read float64
-	target.Preemptible = nn
+	target.RAMBreakdown = v32
+	var v35 float64
+	v35 = buff.ReadFloat64()
+	target.CPUCost = v35
+	var v36 float64
+	v36 = buff.ReadFloat64()
+	target.GPUCost = v36
+	var v37 float64
+	v37 = buff.ReadFloat64()
+	target.GPUCount = v37
+	var v38 float64
+	v38 = buff.ReadFloat64()
+	target.RAMCost = v38
+	var v39 float64
+	v39 = buff.ReadFloat64()
+	target.Discount = v39
+	var v40 float64
+	v40 = buff.ReadFloat64()
+	target.Preemptible = v40
 
 	return nil
 }
@@ -5373,9 +4889,8 @@ func (target *PVAllocation) MarshalBinaryWithContext(ctx *EncodingContext) (err 
 	buff := ctx.Buffer
 	buff.WriteUInt8(AllocationCodecVersion) // version
 
-	buff.WriteFloat64(target.ByteHours) // write float64
-
-	buff.WriteFloat64(target.Cost) // write float64
+	buff.WriteFloat64(target.ByteHours)
+	buff.WriteFloat64(target.Cost)
 
 	return nil
 }
@@ -5431,11 +4946,12 @@ func (target *PVAllocation) UnmarshalBinaryWithContext(ctx *DecodingContext) (er
 		return fmt.Errorf("Invalid Version Unmarshalling PVAllocation. Expected %d or less, got %d", AllocationCodecVersion, version)
 	}
 
-	a := buff.ReadFloat64() // read float64
-	target.ByteHours = a
-
-	b := buff.ReadFloat64() // read float64
-	target.Cost = b
+	var v0 float64
+	v0 = buff.ReadFloat64()
+	target.ByteHours = v0
+	var v1 float64
+	v1 = buff.ReadFloat64()
+	target.Cost = v1
 
 	return nil
 }
@@ -5488,15 +5004,14 @@ func (target *PVKey) MarshalBinaryWithContext(ctx *EncodingContext) (err error) 
 	buff.WriteUInt8(AllocationCodecVersion) // version
 
 	if ctx.IsStringTable() {
-		a := ctx.Table.AddOrGet(target.Cluster)
-		buff.WriteInt(a) // write table index
+		v0 := ctx.Table.AddOrGet(target.Cluster)
+		buff.WriteInt(v0) // write table index
 	} else {
 		buff.WriteString(target.Cluster) // write string
 	}
-
 	if ctx.IsStringTable() {
-		b := ctx.Table.AddOrGet(target.Name)
-		buff.WriteInt(b) // write table index
+		v1 := ctx.Table.AddOrGet(target.Name)
+		buff.WriteInt(v1) // write table index
 	} else {
 		buff.WriteString(target.Name) // write string
 	}
@@ -5555,25 +5070,22 @@ func (target *PVKey) UnmarshalBinaryWithContext(ctx *DecodingContext) (err error
 		return fmt.Errorf("Invalid Version Unmarshalling PVKey. Expected %d or less, got %d", AllocationCodecVersion, version)
 	}
 
-	var b string
+	var v0 string
 	if ctx.IsStringTable() {
-		c := buff.ReadInt() // read string index
-		b = ctx.Table.At(c)
+		v1 := buff.ReadInt() // read string index
+		v0 = ctx.Table.At(v1)
 	} else {
-		b = buff.ReadString() // read string
+		v0 = buff.ReadString() // read string
 	}
-	a := b
-	target.Cluster = a
-
-	var e string
+	target.Cluster = v0
+	var v2 string
 	if ctx.IsStringTable() {
-		f := buff.ReadInt() // read string index
-		e = ctx.Table.At(f)
+		v3 := buff.ReadInt() // read string index
+		v2 = ctx.Table.At(v3)
 	} else {
-		e = buff.ReadString() // read string
+		v2 = buff.ReadString() // read string
 	}
-	d := e
-	target.Name = d
+	target.Name = v2
 
 	return nil
 }
@@ -5625,9 +5137,8 @@ func (target *RawAllocationOnlyData) MarshalBinaryWithContext(ctx *EncodingConte
 	buff := ctx.Buffer
 	buff.WriteUInt8(AllocationCodecVersion) // version
 
-	buff.WriteFloat64(target.CPUCoreUsageMax) // write float64
-
-	buff.WriteFloat64(target.RAMBytesUsageMax) // write float64
+	buff.WriteFloat64(target.CPUCoreUsageMax)
+	buff.WriteFloat64(target.RAMBytesUsageMax)
 
 	return nil
 }
@@ -5683,11 +5194,12 @@ func (target *RawAllocationOnlyData) UnmarshalBinaryWithContext(ctx *DecodingCon
 		return fmt.Errorf("Invalid Version Unmarshalling RawAllocationOnlyData. Expected %d or less, got %d", AllocationCodecVersion, version)
 	}
 
-	a := buff.ReadFloat64() // read float64
-	target.CPUCoreUsageMax = a
-
-	b := buff.ReadFloat64() // read float64
-	target.RAMBytesUsageMax = b
+	var v0 float64
+	v0 = buff.ReadFloat64()
+	target.CPUCoreUsageMax = v0
+	var v1 float64
+	v1 = buff.ReadFloat64()
+	target.RAMBytesUsageMax = v1
 
 	return nil
 }
@@ -5743,55 +5255,46 @@ func (target *SharedAsset) MarshalBinaryWithContext(ctx *EncodingContext) (err e
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 		// --- [begin][write][struct](AssetProperties) ---
 		buff.WriteInt(0) // [compatibility, unused]
-		errA := target.properties.MarshalBinaryWithContext(ctx)
-		if errA != nil {
-			return errA
+		v0 := target.properties.MarshalBinaryWithContext(ctx)
+		if v0 != nil {
+			return v0
 		}
 		// --- [end][write][struct](AssetProperties) ---
-
 	}
-
 	// --- [begin][write][alias](AssetLabels) ---
 	if map[string]string(target.labels) == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 		// --- [begin][write][map](map[string]string) ---
 		buff.WriteInt(len(map[string]string(target.labels))) // map length
-		for v, z := range map[string]string(target.labels) {
+		for v1, v2 := range map[string]string(target.labels) {
 			if ctx.IsStringTable() {
-				a := ctx.Table.AddOrGet(v)
-				buff.WriteInt(a) // write table index
+				v3 := ctx.Table.AddOrGet(v1)
+				buff.WriteInt(v3) // write table index
 			} else {
-				buff.WriteString(v) // write string
+				buff.WriteString(v1) // write string
 			}
-
 			if ctx.IsStringTable() {
-				b := ctx.Table.AddOrGet(z)
-				buff.WriteInt(b) // write table index
+				v4 := ctx.Table.AddOrGet(v2)
+				buff.WriteInt(v4) // write table index
 			} else {
-				buff.WriteString(z) // write string
+				buff.WriteString(v2) // write string
 			}
-
 		}
 		// --- [end][write][map](map[string]string) ---
-
 	}
 	// --- [end][write][alias](AssetLabels) ---
-
 	// --- [begin][write][struct](Window) ---
 	buff.WriteInt(0) // [compatibility, unused]
-	errB := target.window.MarshalBinaryWithContext(ctx)
-	if errB != nil {
-		return errB
+	v5 := target.window.MarshalBinaryWithContext(ctx)
+	if v5 != nil {
+		return v5
 	}
 	// --- [end][write][struct](Window) ---
-
-	buff.WriteFloat64(target.Cost) // write float64
+	buff.WriteFloat64(target.Cost)
 
 	return nil
 }
@@ -5847,75 +5350,66 @@ func (target *SharedAsset) UnmarshalBinaryWithContext(ctx *DecodingContext) (err
 		return fmt.Errorf("Invalid Version Unmarshalling SharedAsset. Expected %d or less, got %d", AssetsCodecVersion, version)
 	}
 
+	var v0 *AssetProperties
 	if buff.ReadUInt8() == uint8(0) {
-		target.properties = nil
+		v0 = nil
 	} else {
-
 		// --- [begin][read][struct](AssetProperties) ---
-		a := new(AssetProperties)
+		v1 := new(AssetProperties)
 		buff.ReadInt() // [compatibility, unused]
-		errA := a.UnmarshalBinaryWithContext(ctx)
-		if errA != nil {
-			return errA
+		v2 := v1.UnmarshalBinaryWithContext(ctx)
+		if v2 != nil {
+			return v2
 		}
-		target.properties = a
+		v0 = v1
 		// --- [end][read][struct](AssetProperties) ---
-
 	}
-
+	target.properties = v0
+	var v3 AssetLabels
 	// --- [begin][read][alias](AssetLabels) ---
-	var b map[string]string
+	var v4 map[string]string
 	if buff.ReadUInt8() == uint8(0) {
-		b = nil
+		v4 = nil
 	} else {
 		// --- [begin][read][map](map[string]string) ---
-		d := buff.ReadInt() // map len
-		c := make(map[string]string, d)
-		for range d {
-			var v string
-			var f string
+		v5 := buff.ReadInt() // map len
+		v4 = make(map[string]string, v5)
+		for range v5 {
+			var v6 string
 			if ctx.IsStringTable() {
-				g := buff.ReadInt() // read string index
-				f = ctx.Table.At(g)
+				v7 := buff.ReadInt() // read string index
+				v6 = ctx.Table.At(v7)
 			} else {
-				f = buff.ReadString() // read string
+				v6 = buff.ReadString() // read string
 			}
-			e := f
-			v = e
-
-			var z string
-			var l string
+			var v8 string
 			if ctx.IsStringTable() {
-				m := buff.ReadInt() // read string index
-				l = ctx.Table.At(m)
+				v9 := buff.ReadInt() // read string index
+				v8 = ctx.Table.At(v9)
 			} else {
-				l = buff.ReadString() // read string
+				v8 = buff.ReadString() // read string
 			}
-			h := l
-			z = h
-
-			c[v] = z
+			v4[v6] = v8
 		}
-		b = c
 		// --- [end][read][map](map[string]string) ---
-
 	}
-
-	target.labels = AssetLabels(b)
+	v3 = AssetLabels(v4)
 	// --- [end][read][alias](AssetLabels) ---
-
+	target.labels = v3
+	var v10 Window
 	// --- [begin][read][struct](Window) ---
-	n := new(Window)
+	v11 := new(Window)
 	buff.ReadInt() // [compatibility, unused]
-	errB := n.UnmarshalBinaryWithContext(ctx)
-	if errB != nil {
-		return errB
+	v12 := v11.UnmarshalBinaryWithContext(ctx)
+	if v12 != nil {
+		return v12
 	}
-	target.window = *n
+	v10 = *v11
 	// --- [end][read][struct](Window) ---
-
-	o := buff.ReadFloat64() // read float64
-	target.Cost = o
+	target.window = v10
+	var v13 float64
+	v13 = buff.ReadFloat64()
+	target.Cost = v13
 
 	return nil
 }
@@ -5971,31 +5465,27 @@ func (target *Window) MarshalBinaryWithContext(ctx *EncodingContext) (err error)
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 		// --- [begin][write][reference](time.Time) ---
-		a, errA := target.start.MarshalBinary()
-		if errA != nil {
-			return errA
+		v0, v1 := target.start.MarshalBinary()
+		if v1 != nil {
+			return v1
 		}
-		buff.WriteInt(len(a))
-		buff.WriteBytes(a)
+		buff.WriteInt(len(v0))
+		buff.WriteBytes(v0)
 		// --- [end][write][reference](time.Time) ---
-
 	}
 	if target.end == nil {
 		buff.WriteUInt8(uint8(0)) // write nil byte
 	} else {
 		buff.WriteUInt8(uint8(1)) // write non-nil byte
-
 		// --- [begin][write][reference](time.Time) ---
-		b, errB := target.end.MarshalBinary()
-		if errB != nil {
-			return errB
+		v2, v3 := target.end.MarshalBinary()
+		if v3 != nil {
+			return v3
 		}
-		buff.WriteInt(len(b))
-		buff.WriteBytes(b)
+		buff.WriteInt(len(v2))
+		buff.WriteBytes(v2)
 		// --- [end][write][reference](time.Time) ---
-
 	}
 
 	return nil
@@ -6052,39 +5542,38 @@ func (target *Window) UnmarshalBinaryWithContext(ctx *DecodingContext) (err erro
 		return fmt.Errorf("Invalid Version Unmarshalling Window. Expected %d or less, got %d", DefaultCodecVersion, version)
 	}
 
+	var v0 *time.Time
 	if buff.ReadUInt8() == uint8(0) {
-		target.start = nil
+		v0 = nil
 	} else {
-
 		// --- [begin][read][reference](time.Time) ---
-		a := new(time.Time)
-		b := buff.ReadInt() // byte array length
-		c := buff.ReadBytes(b)
-		errA := a.UnmarshalBinary(c)
-		if errA != nil {
-			return errA
+		v1 := new(time.Time)
+		v2 := buff.ReadInt() // byte array length
+		v3 := buff.ReadBytes(v2)
+		v4 := v1.UnmarshalBinary(v3)
+		if v4 != nil {
+			return v4
 		}
-		target.start = a
+		v0 = v1
 		// --- [end][read][reference](time.Time) ---
-
 	}
-
+	target.start = v0
+	var v5 *time.Time
 	if buff.ReadUInt8() == uint8(0) {
-		target.end = nil
+		v5 = nil
 	} else {
-
 		// --- [begin][read][reference](time.Time) ---
-		d := new(time.Time)
-		e := buff.ReadInt() // byte array length
-		f := buff.ReadBytes(e)
-		errB := d.UnmarshalBinary(f)
-		if errB != nil {
-			return errB
+		v6 := new(time.Time)
+		v7 := buff.ReadInt() // byte array length
+		v8 := buff.ReadBytes(v7)
+		v9 := v6.UnmarshalBinary(v8)
+		if v9 != nil {
+			return v9
 		}
-		target.end = d
+		v5 = v6
 		// --- [end][read][reference](time.Time) ---
-
 	}
+	target.end = v5
 
 	return nil
 }

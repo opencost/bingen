@@ -1,0 +1,83 @@
+{{/*
+	Marshaller method skeleton. The field-encoding body ({{ .Body }}) is produced
+	by the core Go backend (internal/generator/gobackend.go via
+	internal/generator/core), so the write* sub-templates that previously lived
+	here have been retired. The unmarshaller retains its read* defines because the
+	streamer still reuses them.
+*/}}
+//--------------------------------------------------------------------------
+//  {{ .Type.Name }}
+//--------------------------------------------------------------------------
+
+// MarshalBinary serializes the internal properties of this {{ .Type.Name }} instance
+// into a byte array
+func (target *{{ .Type.Name }}) MarshalBinary() (data []byte, err error) {
+{{- if .Context.IsStringTable }}
+	ctx := NewEncodingContext(stringtable.NewIndexedStringTableWriter())
+{{- else }}
+	ctx := NewEncodingContext(nil)
+{{- end }}
+
+	e := target.MarshalBinaryWithContext(ctx)
+	if e != nil {
+		return nil, e
+	}
+
+	return ctx.ToBytes(), nil
+}
+
+// MarshalBinary serializes the internal properties of this {{ .Type.Name }} instance
+// into an io.Writer.
+func (target *{{ .Type.Name }}) MarshalBinaryTo(writer io.Writer) error {
+	buff := util.NewBufferFromWriter(writer)
+	defer buff.Flush()
+
+{{ if .Context.IsStringTable }}
+	// run a pre-pass to collect all strings into the string table and discard all writes to the main
+	// buffer. Then, we write the string table, sorted by number of repeated uses (descending), to the
+	// main buffer, and use the resulting table as part of the context for the main pass.
+	prepass := stringtable.NewPrepassStringTableWriter()
+	prepassCtx := NewEncodingContextFromWriter(io.Discard, prepass)
+
+	e := target.MarshalBinaryWithContext(prepassCtx)
+	if e != nil {
+		return e
+	}
+
+	tableWriter := prepass.WriteSortedTo(buff)
+	ctx := NewEncodingContextFromBuffer(buff, tableWriter)
+{{- else }}
+	ctx := NewEncodingContextFromBuffer(buff, nil)
+{{- end }}
+
+	return target.MarshalBinaryWithContext(ctx)
+}
+
+// MarshalBinaryWithContext serializes the internal properties of this {{ .Type.Name }} instance
+// into a byte array leveraging a predefined context.
+func (target *{{ .Type.Name }}) MarshalBinaryWithContext(ctx *EncodingContext) (err error) {
+	// panics are recovered and propagated as errors
+	defer func() {
+	    if r := recover(); r != nil {
+	        if e, ok := r.(error); ok {
+	            err = e
+	        } else if s, ok := r.(string); ok {
+	            err = fmt.Errorf("unexpected panic: %s", s)
+	        } else {
+	            err = fmt.Errorf("unexpected panic: %+v", r)
+	        }
+	    }
+	}()
+
+	buff := ctx.Buffer
+	buff.WriteUInt8({{ .Context.VersionSetConst }}) // version
+
+	{{- if .Context.IsPreProcess }}
+	// execute pre-processing func
+	preProcess{{ .Type.Name }}(target)
+	{{- end }}
+
+	{{ .Body }}
+
+	return nil
+}

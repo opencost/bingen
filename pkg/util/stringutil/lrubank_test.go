@@ -38,9 +38,9 @@ func TestBasicLruEvict(t *testing.T) {
 	lruBank.lock.Unlock()
 }
 
-// ---------------------------------------------------------------------------
-// LoadOrStore
-// ---------------------------------------------------------------------------
+//--------------------------------------------------------------------------
+//  Load and Store
+//--------------------------------------------------------------------------
 
 // A stored value must be retrievable and LoadOrStore must signal the hit/miss
 // correctly via the boolean return.
@@ -98,9 +98,9 @@ func TestLoadOrStore_HitUpdateRecency(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// LoadOrStoreFunc
-// ---------------------------------------------------------------------------
+//--------------------------------------------------------------------------
+//  LoadOrStoreFunc
+//--------------------------------------------------------------------------
 
 // The factory function must only be called on a cache miss, not on a hit.
 func TestLoadOrStoreFunc_FactoryCalledOnMissOnly(t *testing.T) {
@@ -121,9 +121,9 @@ func TestLoadOrStoreFunc_FactoryCalledOnMissOnly(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Capacity / eviction
-// ---------------------------------------------------------------------------
+//--------------------------------------------------------------------------
+//  Capacity/Eviction
+//--------------------------------------------------------------------------
 
 // If the bank never exceeds capacity, nothing should be evicted.
 func TestEviction_BelowCapacityNoEviction(t *testing.T) {
@@ -196,9 +196,9 @@ func TestEviction_MRUSurvives(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Clear
-// ---------------------------------------------------------------------------
+//--------------------------------------------------------------------------
+//  Clear
+//--------------------------------------------------------------------------
 
 func TestClear_EmptiesMap(t *testing.T) {
 	bank := NewLruStringBank(10, time.Minute).(*lruStringBank)
@@ -232,9 +232,9 @@ func TestClear_PreviousKeysGone(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// nOldest helper
-// ---------------------------------------------------------------------------
+//--------------------------------------------------------------------------
+//  n-Oldest Helper
+//--------------------------------------------------------------------------
 
 func TestNOldest_ReturnsCorrectCount(t *testing.T) {
 	now := time.Now()
@@ -300,9 +300,9 @@ func TestNOldest_NIsZero(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Concurrency
-// ---------------------------------------------------------------------------
+//--------------------------------------------------------------------------
+//  Concurrency
+//--------------------------------------------------------------------------
 
 // Concurrent LoadOrStore calls must not race or panic.
 func TestConcurrentLoadOrStore(t *testing.T) {
